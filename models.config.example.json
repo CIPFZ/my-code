@@ -1,0 +1,32 @@
+{
+  "default": "anthropic",
+  "proxy": {
+    "enable": true,
+    "http": "http://proxy:8080",
+    "socks5": "socks5://user:pass@proxy:1080"
+  },
+  "providers": {
+    "anthropic": {
+      "apiUrl": "https://api.anthropic.com",
+      "apiKey": "your-anthropic-key",
+      "defaultModel": "claude-opus-4-6"
+    },
+    "openai": {
+      "apiUrl": "https://api.openai.com/v1",
+      "apiKey": "your-openai-key",
+      "defaultModel": "gpt-4o",
+      "proxy": {
+        "enable": false
+      }
+    },
+    "custom1": {
+      "apiUrl": "https://your-custom-api.com/v1",
+      "apiKey": "your-custom-key",
+      "defaultModel": "gpt-4o",
+      "proxy": {
+        "enable": true,
+        "socks5": "socks5://different-proxy:1080"
+      }
+    }
+  }
+}
