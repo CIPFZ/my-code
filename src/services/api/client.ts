@@ -7,13 +7,6 @@ import {
 } from 'src/utils/cch.js'
 import type { GoogleAuth } from 'google-auth-library'
 import {
-  checkAndRefreshOAuthTokenIfNeeded,
-  getAnthropicApiKey,
-  getApiKeyFromApiKeyHelper,
-  getClaudeAIOAuthTokens,
-  getCodexOAuthTokens,
-  isClaudeAISubscriber,
-  isCodexSubscriber,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
 } from 'src/utils/auth.js'
@@ -25,17 +18,16 @@ import {
 } from 'src/utils/model/providers.js'
 import { getProxyFetchOptions } from 'src/utils/proxy.js'
 import {
-  getIsNonInteractiveSession,
   getSessionId,
 } from '../../bootstrap/state.js'
-import { getOauthConfig } from '../../constants/oauth.js'
+import { getConfigApiKey, getConfigApiUrl, getConfigProtocol } from '../../utils/model/configs.js'
+import { createOpenAIFetch } from './openai-fetch-adapter.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
 import {
   getAWSRegion,
   getVertexRegionForModel,
   isEnvTruthy,
 } from '../../utils/envUtils.js'
-import { createCodexFetch } from './codex-fetch-adapter.js'
 
 /**
  * Environment variables for different client types:
@@ -136,14 +128,6 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
-
-  if (!isClaudeAISubscriber()) {
-    await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
-  }
-
   const resolvedFetch = buildFetch(fetchOverride, source)
 
   const ARGS = {
@@ -154,9 +138,6 @@ export async function getAnthropicClient({
     fetchOptions: getProxyFetchOptions({
       forAnthropicAPI: true,
     }) as ClientOptions['fetchOptions'],
-    ...(resolvedFetch && {
-      fetch: resolvedFetch,
-    }),
   }
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
     const { AnthropicBedrock } = await import('@anthropic-ai/bedrock-sdk')
@@ -305,49 +286,29 @@ export async function getAnthropicClient({
     return new AnthropicVertex(vertexArgs) as unknown as Anthropic
   }
 
-  // ── Codex (OpenAI) provider via fetch adapter ─────────────────────
-  if (isCodexSubscriber()) {
-    const codexTokens = getCodexOAuthTokens()
-    if (codexTokens?.accessToken) {
-      const codexFetch = createCodexFetch(codexTokens.accessToken)
-      const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-        apiKey: 'codex-placeholder', // SDK requires a key but the fetch adapter handles auth
-        ...ARGS,
-        fetch: codexFetch as unknown as typeof globalThis.fetch,
-        ...(isDebugToStdErr() && { logger: createStderrLogger() }),
-      }
-      return new Anthropic(clientConfig)
-    }
+  const configApiKey = getConfigApiKey()
+  const resolvedApiKey = apiKey || configApiKey
+  if (!resolvedApiKey) {
+    throw new Error(
+      'Missing API key. Configure apiKey or apiKeyEnv in ~/.my-code/models.config.json for the current provider.',
+    )
   }
 
-  // Determine authentication method based on available tokens
+  const configApiUrl = getConfigApiUrl()
+  const configProtocol = getConfigProtocol()
+  const providerFetch = configProtocol === 'openai'
+    ? createOpenAIFetch(resolvedApiKey, configApiUrl ?? 'https://api.openai.com/v1')
+    : resolvedFetch
+
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
-      ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
-    // Set baseURL from OAuth config when using staging OAuth
-    ...(process.env.USER_TYPE === 'ant' &&
-    isEnvTruthy(process.env.USE_STAGING_OAUTH)
-      ? { baseURL: getOauthConfig().BASE_API_URL }
-      : {}),
+    apiKey: resolvedApiKey,
     ...ARGS,
+    ...(configApiUrl && configProtocol === 'anthropic' ? { baseURL: configApiUrl } : {}),
+    ...(providerFetch ? { fetch: providerFetch } : {}),
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),
   }
 
   return new Anthropic(clientConfig)
-}
-
-async function configureApiKeyHeaders(
-  headers: Record<string, string>,
-  isNonInteractiveSession: boolean,
-): Promise<void> {
-  const token =
-    process.env.ANTHROPIC_AUTH_TOKEN ||
-    (await getApiKeyFromApiKeyHelper(isNonInteractiveSession))
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
-  }
 }
 
 function getCustomHeaders(): Record<string, string> {

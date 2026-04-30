@@ -8,10 +8,8 @@ import { getInitialSettings } from '../settings/settings.js'
 import { findFirstMatch, getBedrockInferenceProfiles } from './bedrock.js'
 import {
   ALL_MODEL_CONFIGS,
-  CANONICAL_ID_TO_KEY,
-  type CanonicalModelId,
   type ModelKey,
-} from './configs.js'
+} from './modelConfigs.js'
 import { type APIProvider, getAPIProvider } from './providers.js'
 
 /**
@@ -67,7 +65,9 @@ function applyModelOverrides(ms: ModelStrings): ModelStrings {
   }
   const out = { ...ms }
   for (const [canonicalId, override] of Object.entries(overrides)) {
-    const key = CANONICAL_ID_TO_KEY[canonicalId as CanonicalModelId]
+    const key = (Object.entries(ALL_MODEL_CONFIGS) as [ModelKey, (typeof ALL_MODEL_CONFIGS)[ModelKey]][]).find(
+      ([, cfg]) => cfg.firstParty === canonicalId,
+    )?.[0]
     if (key && override) {
       out[key] = override
     }

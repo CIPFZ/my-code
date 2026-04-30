@@ -2,4 +2,8 @@ node_modules/
 dist/
 cli
 cli-dev
+my-code
+my-code-dev
 openclaw/
+.omc/
+.claude/

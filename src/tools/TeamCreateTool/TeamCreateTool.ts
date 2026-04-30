@@ -8,10 +8,8 @@ import { formatAgentId } from '../../utils/agentId.js'
 import { isAgentSwarmsEnabled } from '../../utils/agentSwarmsEnabled.js'
 import { getCwd } from '../../utils/cwd.js'
 import { lazySchema } from '../../utils/lazySchema.js'
-import {
-  getDefaultMainLoopModel,
-  parseUserSpecifiedModel,
-} from '../../utils/model/model.js'
+import { resolveTeamModel } from '../../utils/model/configs.js'
+import { getDefaultMainLoopModel } from '../../utils/model/model.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { getResolvedTeammateMode } from '../../utils/swarm/backends/registry.js'
 import { TEAM_LEAD_NAME } from '../../utils/swarm/constants.js'
@@ -146,11 +144,14 @@ export const TeamCreateTool: Tool<InputSchema, Output> = buildTool({
     const leadAgentId = formatAgentId(TEAM_LEAD_NAME, finalTeamName)
     const leadAgentType = agent_type || TEAM_LEAD_NAME
     // Get the team lead's current model from AppState (handles session model, settings, CLI override)
-    const leadModel = parseUserSpecifiedModel(
-      appState.mainLoopModelForSession ??
+    const leadModel = resolveTeamModel({
+      teamName: finalTeamName,
+      role: leadAgentType,
+      currentModel:
+        appState.mainLoopModelForSession ??
         appState.mainLoopModel ??
         getDefaultMainLoopModel(),
-    )
+    })
 
     const teamFilePath = getTeamFilePath(finalTeamName)
 

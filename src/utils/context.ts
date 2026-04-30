@@ -52,6 +52,9 @@ export function getContextWindowForModel(
   model: string,
   betas?: string[],
 ): number {
+  const { resolveModelMetadata } = require('./model/configs.js') as typeof import('./model/configs.js')
+  const metadata = resolveModelMetadata(model)
+
   // Allow override via environment variable (ant-only)
   // This takes precedence over all other context window resolution, including 1M detection,
   // so users can cap the effective context window for local decisions (auto-compact, etc.)
@@ -74,10 +77,10 @@ export function getContextWindowForModel(
   const cap = getModelCapability(model)
   if (cap?.max_input_tokens && cap.max_input_tokens >= 100_000) {
     if (
-      cap.max_input_tokens > MODEL_CONTEXT_WINDOW_DEFAULT &&
+      cap.max_input_tokens > metadata.contextWindow &&
       is1mContextDisabled()
     ) {
-      return MODEL_CONTEXT_WINDOW_DEFAULT
+      return metadata.contextWindow
     }
     return cap.max_input_tokens
   }
@@ -94,7 +97,7 @@ export function getContextWindowForModel(
       return antModel.contextWindow
     }
   }
-  return MODEL_CONTEXT_WINDOW_DEFAULT
+  return metadata.contextWindow
 }
 
 export function getSonnet1mExpTreatmentEnabled(model: string): boolean {

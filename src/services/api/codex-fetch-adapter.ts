@@ -15,7 +15,6 @@
  * Endpoint: https://chatgpt.com/backend-api/codex/responses
  */
 
-import { getCodexOAuthTokens } from '../../utils/auth.js'
 
 // ── Available Codex models ──────────────────────────────────────────
 export const CODEX_MODELS = [
@@ -770,9 +769,7 @@ export function createCodexFetch(
       anthropicBody = {}
     }
 
-    // Get current token (may have been refreshed)
-    const tokens = getCodexOAuthTokens()
-    const currentToken = tokens?.accessToken || accessToken
+    const currentToken = accessToken
 
     // Translate to Codex format
     const { codexBody, codexModel } = translateToCodexBody(anthropicBody)

@@ -563,6 +563,15 @@ export function getModelOptions(fastMode = false): ModelOption[] {
   }
 }
 
+export function getProviderScopedModelOptions(): ModelOption[] {
+  const { resolveProviderModels } = require('./configs.js') as typeof import('./configs.js')
+  return resolveProviderModels().map(model => ({
+    value: model.id,
+    label: model.name ?? model.id,
+    description: model.description ?? model.id,
+  }))
+}
+
 /**
  * Filter model options by the availableModels allowlist.
  * Always preserves the "Default" option (value: null).

@@ -24,6 +24,7 @@ import { getCwd } from '../../utils/cwd.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { errorMessage } from '../../utils/errors.js'
 import { execFileNoThrow } from '../../utils/execFileNoThrow.js'
+import { resolveTeamModel } from '../../utils/model/configs.js'
 import { parseUserSpecifiedModel } from '../../utils/model/model.js'
 import type { PermissionMode } from '../../utils/permissions/PermissionMode.js'
 import { isTmuxAvailable } from '../../utils/swarm/backends/detection.js'
@@ -73,12 +74,12 @@ function getDefaultTeammateModel(leaderModel: string | null): string {
   const configured = getGlobalConfig().teammateDefaultModel
   if (configured === null) {
     // User picked "Default" in the /config picker — follow the leader.
-    return leaderModel ?? getHardcodedTeammateModelFallback()
+    return leaderModel ?? getHardcodedTeammateModelFallback(leaderModel)
   }
   if (configured !== undefined) {
     return parseUserSpecifiedModel(configured)
   }
-  return getHardcodedTeammateModelFallback()
+  return getHardcodedTeammateModelFallback(leaderModel)
 }
 
 /**
@@ -94,10 +95,10 @@ export function resolveTeammateModel(
   inputModel: string | undefined,
   leaderModel: string | null,
 ): string {
-  if (inputModel === 'inherit') {
-    return leaderModel ?? getDefaultTeammateModel(leaderModel)
-  }
-  return inputModel ?? getDefaultTeammateModel(leaderModel)
+  return resolveTeamModel({
+    toolSpecifiedModel: inputModel === 'inherit' ? undefined : inputModel,
+    currentModel: leaderModel,
+  })
 }
 
 // ============================================================================

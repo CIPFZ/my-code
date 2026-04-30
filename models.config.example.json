@@ -1,31 +1,37 @@
 {
-  "default": "anthropic",
+  "currentProvider": "openai",
+  "currentModel": "gpt-4o",
   "proxy": {
     "enable": true,
     "http": "http://proxy:8080",
     "socks5": "socks5://user:pass@proxy:1080"
   },
+  "aliases": {
+    "sonnet": "gpt-4o",
+    "opus": "gpt-4o",
+    "haiku": "gpt-4o-mini"
+  },
   "providers": {
     "anthropic": {
+      "protocol": "anthropic",
       "apiUrl": "https://api.anthropic.com",
-      "apiKey": "your-anthropic-key",
-      "defaultModel": "claude-opus-4-6"
+      "apiKeyEnv": "ANTHROPIC_API_KEY",
+      "defaultModel": "claude-opus-4-6",
+      "models": [
+        { "id": "claude-opus-4-6", "contextWindow": 200000, "maxOutputTokens": 64000 }
+      ]
     },
     "openai": {
+      "protocol": "openai",
       "apiUrl": "https://api.openai.com/v1",
-      "apiKey": "your-openai-key",
+      "apiKeyEnv": "OPENAI_API_KEY",
       "defaultModel": "gpt-4o",
+      "models": [
+        { "id": "gpt-4o", "contextWindow": 128000, "maxOutputTokens": 16384 },
+        { "id": "gpt-4o-mini", "contextWindow": 128000, "maxOutputTokens": 16384 }
+      ],
       "proxy": {
         "enable": false
-      }
-    },
-    "custom1": {
-      "apiUrl": "https://your-custom-api.com/v1",
-      "apiKey": "your-custom-key",
-      "defaultModel": "gpt-4o",
-      "proxy": {
-        "enable": true,
-        "socks5": "socks5://different-proxy:1080"
       }
     }
   }

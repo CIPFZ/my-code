@@ -13,7 +13,6 @@ import {
   isMaxSubscriber,
   isProSubscriber,
   isTeamPremiumSubscriber,
-  isCodexSubscriber,
 } from '../auth.js'
 import { getAntModelOverrideConfig, resolveAntModel } from './antModels.js'
 import {
@@ -45,17 +44,210 @@ interface ProxyConfig {
   socks5?: string
 }
 
+export type ProviderProtocol = 'anthropic' | 'openai'
+
+export interface ModelMetadata {
+  contextWindow: number
+  maxOutputTokens?: number
+}
+
+interface ProviderModelConfig {
+  id?: string
+  name?: string
+  description?: string
+  contextWindow?: number
+  maxOutputTokens?: number
+}
+
 interface ProviderConfig {
-  apiUrl: string
-  apiKey: string
+  baseUrl?: string
+  apiUrl?: string
+  apiKey?: string
+  apiKeyEnv?: string
+  protocol: ProviderProtocol
   defaultModel?: string
+  models?: (string | ProviderModelConfig)[]
   proxy?: ProxyConfig  // 可选，覆盖全局 proxy
 }
 
 interface ModelConfigFile {
   default?: string  // 默认 provider 名称，如 "anthropic"
+  currentProvider?: string
+  currentModel?: string
   proxy?: ProxyConfig  // 全局默认 proxy
-  providers: Record<string, ProviderConfig>
+  providers?: Record<string, ProviderConfig>
+  aliases?: Record<string, string>
+  agents?: {
+    defaultModel?: string
+    models?: Record<string, string>
+  }
+  teams?: {
+    defaultModel?: string
+    models?: Record<string, string>
+  }
+}
+
+export type ProviderResolution = {
+  id: string
+  config: ProviderConfig
+}
+
+export type ProviderModel = {
+  id: string
+  name?: string
+  description?: string
+  metadata?: Partial<ModelMetadata>
+}
+
+function requireProviderModels(config: ModelConfigFile): Record<string, ProviderConfig> {
+  if (!config.providers || Object.keys(config.providers).length === 0) {
+    throw new Error('No providers configured. Add providers to ~/.my-code/models.config.json.')
+  }
+  return config.providers
+}
+
+function normalizeProviderModel(model: string | ProviderModelConfig): ProviderModel {
+  if (typeof model === 'string') {
+    return { id: model, name: model, description: model }
+  }
+  const id = model.id ?? model.name
+  if (!id) {
+    throw new Error('Provider model entry is missing id. Add id to ~/.my-code/models.config.json.')
+  }
+  return {
+    id,
+    name: model.name ?? id,
+    description: model.description ?? id,
+    metadata: {
+      contextWindow: model.contextWindow,
+      maxOutputTokens: model.maxOutputTokens,
+    },
+  }
+}
+
+export function resolveCurrentProvider(): ProviderResolution {
+  const config = loadModelConfig()
+  const providers = requireProviderModels(config)
+  const providerId = process.env.MY_CODE_PROVIDER ?? config.currentProvider ?? config.default
+  if (!providerId) {
+    throw new Error('No current provider configured. Set MY_CODE_PROVIDER or currentProvider in ~/.my-code/models.config.json.')
+  }
+  const provider = providers[providerId]
+  if (!provider) {
+    throw new Error(`Provider '${providerId}' is not configured in ~/.my-code/models.config.json.`)
+  }
+  return { id: providerId, config: provider }
+}
+
+export function resolveProviderProtocol(provider = resolveCurrentProvider()): ProviderProtocol {
+  const protocol = provider.config.protocol
+  if (protocol !== 'anthropic' && protocol !== 'openai') {
+    throw new Error(`Provider '${provider.id}' must set protocol to 'anthropic' or 'openai'.`)
+  }
+  return protocol
+}
+
+export function resolveProviderModels(provider = resolveCurrentProvider()): ProviderModel[] {
+  const models = provider.config.models?.map(normalizeProviderModel) ?? []
+  if (provider.config.defaultModel && !models.some(model => model.id === provider.config.defaultModel)) {
+    models.unshift({
+      id: provider.config.defaultModel,
+      name: provider.config.defaultModel,
+      description: provider.config.defaultModel,
+    })
+  }
+  if (models.length === 0) {
+    throw new Error(`Provider '${provider.id}' has no models. Add models or defaultModel to ~/.my-code/models.config.json.`)
+  }
+  return models
+}
+
+export function resolveModelMetadata(model: string, provider = resolveCurrentProvider()): ModelMetadata {
+  const baseModel = model.replace(/\[1m\]$/i, '')
+  const configured = resolveProviderModels(provider).find(m => m.id === model || m.id === baseModel)
+  const contextWindow = configured?.metadata?.contextWindow
+  if (!contextWindow || contextWindow <= 0) {
+    throw new Error(`Missing contextWindow metadata for model '${model}' in provider '${provider.id}'. Add contextWindow to ~/.my-code/models.config.json.`)
+  }
+  return {
+    contextWindow: /\[1m\]$/i.test(model) ? Math.max(contextWindow, 1_000_000) : contextWindow,
+    maxOutputTokens: configured.metadata?.maxOutputTokens,
+  }
+}
+
+function validateProviderModel(model: string, provider = resolveCurrentProvider()): string {
+  const baseModel = model.replace(/\[1m\]$/i, '')
+  if (resolveProviderModels(provider).some(m => m.id === model || m.id === baseModel)) {
+    return model
+  }
+  throw new Error(`Model '${model}' is not configured for provider '${provider.id}'. Add it to ~/.my-code/models.config.json.`)
+}
+
+function resolveConfiguredAlias(model: string): string | undefined {
+  return loadModelConfig().aliases?.[model.toLowerCase()]
+}
+
+function resolveConfiguredRoute(model: string | undefined, provider: ProviderResolution): string | undefined {
+  if (!model || model === 'inherit') return undefined
+  const alias = resolveConfiguredAlias(model)
+  return validateProviderModel(alias ?? model, provider)
+}
+
+export function resolveAgentModel(params: {
+  agentName?: string
+  toolSpecifiedModel?: string
+  agentModel?: string
+  currentModel?: string | null
+}): string {
+  const provider = resolveCurrentProvider()
+  const config = loadModelConfig()
+  const configured =
+    params.toolSpecifiedModel ??
+    (params.agentName ? config.agents?.models?.[params.agentName] : undefined) ??
+    config.agents?.defaultModel
+  const configuredModel = resolveConfiguredRoute(configured, provider)
+  if (configuredModel) return configuredModel
+  if (params.currentModel) return validateProviderModel(params.currentModel, provider)
+  const frontmatterModel = resolveConfiguredRoute(params.agentModel, provider)
+  if (frontmatterModel) return frontmatterModel
+  throw new Error(`Unable to resolve model for agent '${params.agentName ?? 'unknown'}' with provider '${provider.id}'. Configure an agent model or current provider model in ~/.my-code/models.config.json.`)
+}
+
+export function resolveTeamModel(params: {
+  teamName?: string
+  role?: string
+  toolSpecifiedModel?: string
+  agentModel?: string
+  currentModel?: string | null
+}): string {
+  const provider = resolveCurrentProvider()
+  const config = loadModelConfig()
+  const configured =
+    params.toolSpecifiedModel ??
+    (params.role ? config.teams?.models?.[params.role] : undefined) ??
+    (params.role ? config.agents?.models?.[params.role] : undefined) ??
+    config.teams?.defaultModel ??
+    config.agents?.defaultModel
+  const configuredModel = resolveConfiguredRoute(configured, provider)
+  if (configuredModel) return configuredModel
+  if (params.currentModel) return validateProviderModel(params.currentModel, provider)
+  const frontmatterModel = resolveConfiguredRoute(params.agentModel, provider)
+  if (frontmatterModel) return frontmatterModel
+  throw new Error(`Unable to resolve model for team '${params.teamName ?? 'unknown'}' role '${params.role ?? 'unknown'}' with provider '${provider.id}'. Configure a team model or current provider model in ~/.my-code/models.config.json.`)
+}
+
+export function getCurrentProviderId(): string {
+  return resolveCurrentProvider().id
+}
+
+export function getConfiguredCurrentModel(): string | undefined {
+  const config = loadModelConfig()
+  const provider = resolveCurrentProvider()
+  return config.currentModel ?? provider.config.defaultModel
+}
+
+export function setConfiguredCurrentModel(model: string): void {
+  validateProviderModel(model)
 }
 
 // 获取当前 provider 的 proxy 配置
@@ -83,7 +275,7 @@ let configLoadError = false
 
 function getConfigPath(): string | undefined {
   const configPaths = [
-    process.env.CLAUDE_CODE_MODEL_CONFIG,
+    process.env.MY_CODE_MODEL_CONFIG,
     process.env.MY_CODE_CONFIG_DIR
       ? `${process.env.MY_CODE_CONFIG_DIR}/models.config.json`
       : undefined,
@@ -118,13 +310,15 @@ function loadModelConfig(): ModelConfigFile {
     const content = fs.readFileSync(configPath, 'utf8')
     cachedConfig = JSON.parse(content) as ModelConfigFile
     return cachedConfig
-  } catch (error) {
-    if (!configLoadError) {
-      configLoadError = true
-      console.error(`Failed to load model config from ${configPath}: ${error}`)
+  } catch (error: unknown) {
+    const nodeError = error as { code?: string }
+    if (nodeError.code === 'ENOENT') {
+      cachedConfig = {}
+      return cachedConfig
     }
-    cachedConfig = {}
-    return cachedConfig
+    throw new Error(
+      `Failed to load model config from ${configPath}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
 }
 
@@ -135,13 +329,7 @@ export function clearModelConfigCache(): void {
 
 // 获取当前选中的 provider 名称
 function getCurrentProviderName(): string {
-  // 优先使用环境变量指定的 provider
-  const envProvider = process.env.MY_CODE_PROVIDER
-  if (envProvider) return envProvider
-
-  // 否则使用配置文件中的 default
-  const config = loadModelConfig()
-  return config.default ?? 'anthropic'
+  return resolveCurrentProvider().id
 }
 
 // 获取当前 provider 的配置
@@ -153,16 +341,17 @@ function getCurrentProviderConfig(): ProviderConfig | undefined {
 
 export function getConfigApiUrl(): string | undefined {
   const providerConfig = getCurrentProviderConfig()
-  return providerConfig?.apiUrl
+  return providerConfig?.baseUrl ?? providerConfig?.apiUrl
 }
 
 export function getConfigApiKey(): string | undefined {
   const providerConfig = getCurrentProviderConfig()
-  return providerConfig?.apiKey
+  if (providerConfig?.apiKey) return providerConfig.apiKey
+  return providerConfig?.apiKeyEnv ? process.env[providerConfig.apiKeyEnv] : undefined
 }
 
 export function getConfigProtocol(): string | undefined {
-  return 'anthropic'  // 默认协议
+  return resolveProviderProtocol()
 }
 
 export function getConfigDefaultModel(): string | undefined {

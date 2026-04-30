@@ -10,8 +10,7 @@ import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { convertEffortValueToLevel, type EffortLevel, getDefaultEffortForModel, modelSupportsEffort, modelSupportsMaxEffort, resolvePickerEffortPersistence, toPersistableEffort } from '../utils/effort.js';
 import { getDefaultMainLoopModel, type ModelSetting, modelDisplayString, parseUserSpecifiedModel } from '../utils/model/model.js';
-import { getCachedCustomApiModels } from '../utils/model/fetchModels.js';
-import { getModelOptions } from '../utils/model/modelOptions.js';
+import { getProviderScopedModelOptions } from '../utils/model/modelOptions.js';
 import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
@@ -68,64 +67,14 @@ export function ModelPicker(t0) {
   const t2 = isFastMode ?? false;
   let t3;
   if ($[2] !== t2) {
-    t3 = getModelOptions(t2);
+    t3 = getProviderScopedModelOptions();
     $[2] = t2;
     $[3] = t3;
   } else {
     t3 = $[3];
   }
   const modelOptions = t3;
-  // Add custom API models if configured
-  const customApiModels = getCachedCustomApiModels();
-  let t4;
-  if (customApiModels && customApiModels.length > 0) {
-    const customApiOptions = customApiModels.map(m => ({
-      value: m.id,
-      label: m.name || m.id,
-      description: m.description || m.id,
-    }));
-    t4 = [...modelOptions, { value: '---', label: '---', description: '' } as any, ...customApiOptions];
-  } else {
-    t4 = modelOptions;
-  }
-  bb0: {
-    if (initial !== null && !modelOptions.some(opt => opt.value === initial)) {
-      let t5;
-      if ($[4] !== initial) {
-        t5 = modelDisplayString(initial);
-        $[4] = initial;
-        $[5] = t5;
-      } else {
-        t5 = $[5];
-      }
-      let t6;
-      if ($[6] !== initial || $[7] !== t5) {
-        t6 = {
-          value: initial,
-          label: t5,
-          description: "Current model"
-        };
-        $[6] = initial;
-        $[7] = t5;
-        $[8] = t6;
-      } else {
-        t6 = $[8];
-      }
-      let t7;
-      if ($[9] !== modelOptions || $[10] !== t6) {
-        t7 = [...modelOptions, t6];
-        $[9] = modelOptions;
-        $[10] = t6;
-        $[11] = t7;
-      } else {
-        t7 = $[11];
-      }
-      t4 = t7;
-      break bb0;
-    }
-    t4 = modelOptions;
-  }
-  const optionsWithInitial = t4;
+  const optionsWithInitial = modelOptions;
   let t5;
   if ($[12] !== optionsWithInitial) {
     t5 = optionsWithInitial.map(_temp3);
