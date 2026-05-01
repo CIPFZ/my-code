@@ -26,7 +26,6 @@ import {
   getAuthTokenSource,
   getOauthAccountInfo,
   getSubscriptionType,
-  isUsing3PServices,
   saveCodexOAuthTokens,
   saveOAuthTokensIfNeeded,
   validateForceLoginOrg,
@@ -41,7 +40,6 @@ import { getInitialSettings } from '../../utils/settings/settings.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import {
   buildAccountProperties,
-  buildAPIProviderProperties,
 } from '../../utils/status.js'
 
 /**
@@ -250,6 +248,14 @@ export async function authLogin({
   }
 }
 
+function getAPIProviderSafely(): string {
+  try {
+    return getAPIProvider()
+  } catch {
+    return 'not_configured'
+  }
+}
+
 export async function authStatus(opts: {
   json?: boolean
   text?: boolean
@@ -260,9 +266,8 @@ export async function authStatus(opts: {
     !!process.env.ANTHROPIC_API_KEY && !isRunningOnHomespace()
   const oauthAccount = getOauthAccountInfo()
   const subscriptionType = getSubscriptionType()
-  const using3P = isUsing3PServices()
-  const loggedIn =
-    hasToken || apiKeySource !== 'none' || hasApiKeyEnvVar || using3P
+  const using3P = false
+  const loggedIn = hasToken || apiKeySource !== 'none' || hasApiKeyEnvVar
 
   // Determine auth method
   let authMethod: string = 'none'
@@ -281,10 +286,7 @@ export async function authStatus(opts: {
   }
 
   if (opts.text) {
-    const properties = [
-      ...buildAccountProperties(),
-      ...buildAPIProviderProperties(),
-    ]
+    const properties = buildAccountProperties()
     let hasAuthProperty = false
     for (const prop of properties) {
       const value =
@@ -308,22 +310,21 @@ export async function authStatus(opts: {
     }
     if (!loggedIn) {
       process.stdout.write(
-        'Not logged in. Run claude auth login to authenticate.\n',
+        'No my-code API credentials configured. Configure ~/.my-code/models.config.json or set provider environment credentials.\n',
       )
     }
   } else {
-    const apiProvider = getAPIProvider()
+    const output: Record<string, string | boolean | null> = {
+      loggedIn,
+      authMethod,
+      apiProvider: getAPIProviderSafely(),
+    }
     const resolvedApiKeySource =
       apiKeySource !== 'none'
         ? apiKeySource
         : hasApiKeyEnvVar
           ? 'ANTHROPIC_API_KEY'
           : null
-    const output: Record<string, string | boolean | null> = {
-      loggedIn,
-      authMethod,
-      apiProvider,
-    }
     if (resolvedApiKeySource) {
       output.apiKeySource = resolvedApiKeySource
     }
@@ -336,7 +337,7 @@ export async function authStatus(opts: {
 
     process.stdout.write(jsonStringify(output, null, 2) + '\n')
   }
-  process.exit(loggedIn ? 0 : 1)
+  process.exit(0)
 }
 
 export async function authLogout(): Promise<void> {

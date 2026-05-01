@@ -1,6 +1,7 @@
 import { feature } from 'bun:bundle'
 import { randomBytes } from 'crypto'
-import { unwatchFile, watchFile } from 'fs'
+import { existsSync, unwatchFile, watchFile } from 'fs'
+import { homedir } from 'os'
 import memoize from 'lodash-es/memoize.js'
 import pickBy from 'lodash-es/pickBy.js'
 import { basename, dirname, join, resolve } from 'path'
@@ -18,7 +19,7 @@ import { logForDebugging } from './debug.js'
 import { logForDiagnosticsNoPII } from './diagLogs.js'
 import { getGlobalClaudeFile } from './env.js'
 import { getClaudeConfigHomeDir, isEnvTruthy } from './envUtils.js'
-import { ConfigParseError, getErrnoCode } from './errors.js'
+import { ConfigParseError, errorMessage, getErrnoCode } from './errors.js'
 import { writeFileSyncAndFlush_DEPRECATED } from './file.js'
 import { getFsImplementation } from './fsOperations.js'
 import { findCanonicalGitRoot } from './git.js'
@@ -645,6 +646,52 @@ function createDefaultGlobalConfig(): GlobalConfig {
     cachedGrowthBookFeatures: {},
     respectGitignore: true,
     copyFullResponse: false,
+  }
+}
+
+function sanitizeLegacyGlobalConfig(config: Partial<GlobalConfig>): Partial<GlobalConfig> {
+  const {
+    oauthAccount,
+    codexOAuth,
+    openaiOauthTokens,
+    claudeCodeFirstTokenDate,
+    s1mAccessCache,
+    s1mNonSubscriberAccessCache,
+    passesEligibilityCache,
+    groveConfigCache,
+    overageCreditGrantCache,
+    cachedExtraUsageDisabledReason,
+    bridgeOauthDeadExpiresAt,
+    bridgeOauthDeadFailCount,
+    metricsStatusCache,
+    clientDataCache,
+    additionalModelOptionsCache,
+    ...safeConfig
+  } = config
+  return safeConfig
+}
+
+function migrateLegacyGlobalConfigIfNeeded(): void {
+  const activeFile = getGlobalClaudeFile()
+  const fs = getFsImplementation()
+  fs.mkdirSync(getClaudeConfigHomeDir())
+  if (existsSync(activeFile)) return
+
+  const legacyFile = join(homedir(), '.claude.json')
+  if (!existsSync(legacyFile)) return
+
+  try {
+    const parsed = jsonParse(stripBOM(fs.readFileSync(legacyFile, { encoding: 'utf-8' })))
+    if (!parsed || typeof parsed !== 'object') return
+    const migrated = sanitizeLegacyGlobalConfig(parsed as Partial<GlobalConfig>)
+    saveConfig(activeFile, {
+      ...createDefaultGlobalConfig(),
+      ...migrated,
+    }, DEFAULT_GLOBAL_CONFIG)
+  } catch (error) {
+    logForDebugging(`Failed to migrate legacy Claude config: ${errorMessage(error)}`, {
+      level: 'warn',
+    })
   }
 }
 
@@ -1369,6 +1416,7 @@ export function enableConfigs(): void {
   // Any reads to configuration before this flag is set show an console warning
   // to prevent us from adding config reading during module initialization
   configReadingAllowed = true
+  migrateLegacyGlobalConfigIfNeeded()
   // We only check the global config because currently all the configs share a file
   getConfig(
     getGlobalClaudeFile(),

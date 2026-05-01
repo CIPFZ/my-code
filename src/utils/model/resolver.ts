@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { fetchModelsFromEndpoint } from './fetchModels.js'
@@ -124,7 +124,9 @@ export function getModelsConfigPath(context: ResolverContext = {}): string {
 export function loadModelConfig(context: ResolverContext = {}): ModelConfigFile {
   if (context.config) return context.config
 
+  const configDir = getMyCodeConfigDir(context)
   const configPath = getModelsConfigPath(context)
+  mkdirSync(configDir, { recursive: true })
   if (cachedConfig !== null && cachedConfigPath === configPath) {
     return cachedConfig
   }
