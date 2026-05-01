@@ -8,18 +8,30 @@ import {
 export type APIProvider = string
 
 export function getAPIProvider(): APIProvider {
-  return resolveCurrentProvider().providerId
+  try {
+    return resolveCurrentProvider().providerId
+  } catch {
+    return 'not_configured'
+  }
 }
 
 // 获取当前配置的 API URL（支持多厂商配置）
 export function getConfiguredApiUrl(): string | undefined {
-  const provider = resolveCurrentProvider().provider
-  return provider.baseUrl ?? provider.apiUrl
+  try {
+    const provider = resolveCurrentProvider().provider
+    return provider.baseUrl ?? provider.apiUrl
+  } catch {
+    return undefined
+  }
 }
 
 // 获取当前配置的 API Key（支持多厂商配置）
 export function getConfiguredApiKey(): string | undefined {
-  return resolveProviderAuth(resolveCurrentProvider()).apiKey
+  try {
+    return resolveProviderAuth(resolveCurrentProvider()).apiKey
+  } catch {
+    return undefined
+  }
 }
 
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
