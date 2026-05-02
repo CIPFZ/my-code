@@ -316,12 +316,75 @@ async function translateOpenAIStreamToAnthropic(
       let currentToolCallId = ''
       let currentToolCallName = ''
       let currentToolCallArgs = ''
+      let emittedToolCallArgsLength = 0
       let inToolCall = false
       let hadToolCalls = false
       let toolCallIndex = 0
+      const reader = openaiResponse.body?.getReader()
+
+      function emitToolCallStart(id: string, name: string) {
+        currentToolCallId = id || `call_${Date.now()}_${toolCallIndex++}`
+        currentToolCallName = name || ''
+        currentToolCallArgs = ''
+        emittedToolCallArgsLength = 0
+        inToolCall = true
+        hadToolCalls = true
+
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_start', JSON.stringify({
+              type: 'content_block_start',
+              index: contentBlockIndex,
+              content_block: {
+                type: 'tool_use',
+                id: currentToolCallId,
+                name: currentToolCallName,
+                input: '',
+              },
+            })),
+          ),
+        )
+      }
+
+      function emitToolArgDelta(argDelta: string) {
+        currentToolCallArgs += argDelta
+        emittedToolCallArgsLength = currentToolCallArgs.length
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_delta', JSON.stringify({
+              type: 'content_block_delta',
+              index: contentBlockIndex,
+              delta: {
+                type: 'input_json_delta',
+                partial_json: argDelta,
+              },
+            })),
+          ),
+        )
+      }
+
+      function emitMissingToolArgs(args: string) {
+        const missingArgs = args.slice(emittedToolCallArgsLength)
+        if (missingArgs.length > 0) {
+          emitToolArgDelta(missingArgs)
+        }
+        currentToolCallArgs = args
+      }
+
+      function closeToolCallBlock() {
+        controller.enqueue(
+          encoder.encode(
+            formatSSE('content_block_stop', JSON.stringify({
+              type: 'content_block_stop',
+              index: contentBlockIndex,
+            })),
+          ),
+        )
+        contentBlockIndex++
+        inToolCall = false
+      }
 
       try {
-        const reader = openaiResponse.body?.getReader()
         if (!reader) {
           controller.enqueue(
             encoder.encode(
@@ -367,7 +430,7 @@ async function translateOpenAIStreamToAnthropic(
               continue
             }
 
-            const eventType = event.event as string
+            const eventType = (event.event || event.type) as string
 
             // ── Text content events ─────────────────────────────
             if (eventType === 'content_block.delta') {
@@ -405,26 +468,9 @@ async function translateOpenAIStreamToAnthropic(
             else if (eventType === 'content_block.started') {
               const contentBlock = event.content_block as Record<string, unknown>
               if (contentBlock?.type === 'function_call') {
-                const fn = contentBlock.name as string
-                currentToolCallId = `call_${Date.now()}_${toolCallIndex++}`
-                currentToolCallName = fn || ''
-                currentToolCallArgs = ''
-                inToolCall = true
-                hadToolCalls = true
-
-                controller.enqueue(
-                  encoder.encode(
-                    formatSSE('content_block_start', JSON.stringify({
-                      type: 'content_block_start',
-                      index: contentBlockIndex,
-                      content_block: {
-                        type: 'tool_use',
-                        id: currentToolCallId,
-                        name: currentToolCallName,
-                        input: '',
-                      },
-                    })),
-                  ),
+                emitToolCallStart(
+                  (contentBlock.id as string) || (contentBlock.call_id as string) || '',
+                  contentBlock.name as string,
                 )
               } else if (contentBlock?.type === 'text') {
                 currentTextBlockStarted = true
@@ -434,16 +480,7 @@ async function translateOpenAIStreamToAnthropic(
             // Content block stopped
             else if (eventType === 'content_block.stopped') {
               if (inToolCall) {
-                controller.enqueue(
-                  encoder.encode(
-                    formatSSE('content_block_stop', JSON.stringify({
-                      type: 'content_block_stop',
-                      index: contentBlockIndex,
-                    })),
-                  ),
-                )
-                contentBlockIndex++
-                inToolCall = false
+                closeToolCallBlock()
               }
               if (currentTextBlockStarted) {
                 controller.enqueue(
@@ -465,41 +502,11 @@ async function translateOpenAIStreamToAnthropic(
               const argDelta = event.delta as string
 
               if (fnName && !currentToolCallName) {
-                currentToolCallName = fnName
-                currentToolCallId = `call_${Date.now()}_${toolCallIndex++}`
-                inToolCall = true
-                hadToolCalls = true
-
-                controller.enqueue(
-                  encoder.encode(
-                    formatSSE('content_block_start', JSON.stringify({
-                      type: 'content_block_start',
-                      index: contentBlockIndex,
-                      content_block: {
-                        type: 'tool_use',
-                        id: currentToolCallId,
-                        name: currentToolCallName,
-                        input: '',
-                      },
-                    })),
-                  ),
-                )
+                emitToolCallStart('', fnName)
               }
 
               if (inToolCall && typeof argDelta === 'string') {
-                currentToolCallArgs += argDelta
-                controller.enqueue(
-                  encoder.encode(
-                    formatSSE('content_block_delta', JSON.stringify({
-                      type: 'content_block_delta',
-                      index: contentBlockIndex,
-                      delta: {
-                        type: 'input_json_delta',
-                        partial_json: argDelta,
-                      },
-                    })),
-                  ),
-                )
+                emitToolArgDelta(argDelta)
               }
             }
 
@@ -512,7 +519,55 @@ async function translateOpenAIStreamToAnthropic(
                 currentToolCallName = fnName
               }
               if (inToolCall && args) {
-                currentToolCallArgs = args
+                emitMissingToolArgs(args)
+              }
+            }
+
+            else if (eventType === 'response.output_item.added') {
+              const item = event.item as Record<string, unknown>
+              if (item?.type === 'function_call') {
+                emitToolCallStart(
+                  (item.call_id as string) || (item.id as string) || '',
+                  item.name as string,
+                )
+                const args = item.arguments as string
+                if (typeof args === 'string' && args.length > 0) {
+                  emitMissingToolArgs(args)
+                }
+              }
+            }
+
+            else if (eventType === 'response.function_call_arguments.delta') {
+              const argDelta = event.delta as string
+              if (typeof argDelta === 'string' && inToolCall) {
+                emitToolArgDelta(argDelta)
+              }
+            }
+
+            else if (eventType === 'response.function_call_arguments.done') {
+              const args = event.arguments as string
+              if (typeof args === 'string' && inToolCall) {
+                emitMissingToolArgs(args)
+              }
+            }
+
+            else if (eventType === 'response.output_item.done') {
+              const item = event.item as Record<string, unknown>
+              if (item?.type === 'function_call' && inToolCall) {
+                const args = item.arguments as string
+                if (typeof args === 'string' && args.length > 0) {
+                  emitMissingToolArgs(args)
+                }
+                closeToolCallBlock()
+              }
+            }
+
+            else if (eventType === 'response.completed') {
+              const response = event.response as Record<string, unknown>
+              const usage = response?.usage as Record<string, number> | undefined
+              if (usage) {
+                outputTokens = usage.output_tokens || outputTokens
+                inputTokens = usage.input_tokens || inputTokens
               }
             }
 
@@ -618,44 +673,16 @@ async function translateOpenAIStreamToAnthropic(
                     for (const tc of toolCalls) {
                       const fn = tc.function as Record<string, unknown>
                       if (!inToolCall && fn) {
-                        currentToolCallId = (tc.id as string) || `call_${Date.now()}_${toolCallIndex++}`
-                        currentToolCallName = (fn.name as string) || ''
-                        currentToolCallArgs = ''
-                        inToolCall = true
-                        hadToolCalls = true
-
-                        controller.enqueue(
-                          encoder.encode(
-                            formatSSE('content_block_start', JSON.stringify({
-                              type: 'content_block_start',
-                              index: contentBlockIndex,
-                              content_block: {
-                                type: 'tool_use',
-                                id: currentToolCallId,
-                                name: currentToolCallName,
-                                input: '',
-                              },
-                            })),
-                          ),
+                        emitToolCallStart(
+                          (tc.id as string) || '',
+                          fn.name as string,
                         )
                       }
 
                       if (inToolCall) {
                         const argDelta = fn.arguments as string
                         if (typeof argDelta === 'string') {
-                          currentToolCallArgs += argDelta
-                          controller.enqueue(
-                            encoder.encode(
-                              formatSSE('content_block_delta', JSON.stringify({
-                                type: 'content_block_delta',
-                                index: contentBlockIndex,
-                                delta: {
-                                  type: 'input_json_delta',
-                                  partial_json: argDelta,
-                                },
-                              })),
-                            ),
-                          )
+                          emitToolArgDelta(argDelta)
                         }
                       }
                     }
@@ -723,14 +750,7 @@ async function translateOpenAIStreamToAnthropic(
         )
       }
       if (inToolCall) {
-        controller.enqueue(
-          encoder.encode(
-            formatSSE('content_block_stop', JSON.stringify({
-              type: 'content_block_stop',
-              index: contentBlockIndex,
-            })),
-          ),
-        )
+        closeToolCallBlock()
       }
 
       finishStream(controller, encoder, outputTokens, inputTokens, hadToolCalls)
