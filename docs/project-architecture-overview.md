@@ -1,22 +1,24 @@
 # 项目架构梳理
 
-本文档归纳当前项目的整体结构、构建方式、启动链路、模型请求链路以及多 provider / Codex 适配相关改造点。
+本文档基于当前源码实现梳理 `my-code` 的定位、构建方式、启动链路、运行时架构、模型请求链路，以及本项目相对 Claude Code 源码的主要自定义适配点。若文档与代码不一致，以代码为准。
 
-## 项目定位
+## 1. 项目定位
 
-本项目是基于 Claude Code 源码改造的 Bun 单包项目。它不是传统 npm workspaces 形式的 monorepo，但源码目录分层较大，整体更接近“单体大仓”结构。
+`my-code` 是一个基于 Claude Code 源码重构/适配的 Bun 单包 CLI 项目。它保留 Claude Code 的交互式终端、slash command、工具调用、MCP、skills、plugins、agent/subagent 等能力，同时围绕“本地可控、自定义 provider、自定义模型、单文件编译运行”做了适配。
 
-主要目标包括：
+当前项目的核心目标：
 
-- 基于 Claude Code 源码构建自定义 CLI。
-- 使用 Bun 作为构建和测试运行环境。
-- 保留 Claude Code 原有的交互式 CLI、工具调用、slash command、REPL 等能力。
-- 增加多 provider / 自定义模型配置能力。
-- 通过 fetch adapter 将 Anthropic Messages API 调用转接到 OpenAI / Codex 等后端。
+- 使用 Bun 作为依赖、测试、构建与单文件编译运行时。
+- 输出可直接执行的 `./my-code` / `./my-code-dev`，减少对 Node 环境的运行期依赖。
+- 使用 `~/.my-code/models.config.json` 管理 provider、protocol、base URL、API key、默认模型和模型 metadata。
+- 使用 `MY_CODE_*` 环境变量隔离本项目配置，避免污染原 Claude Code 配置。
+- 支持 Anthropic Messages-compatible API 与 OpenAI-compatible Chat Completions API。
+- 保留原 Anthropic SDK 调用路径，在 client 层通过 fetch adapter 做协议转换。
+- 将 `/model`、context window、auto compact、agent/team 模型路由等行为改为以当前 provider 配置为准。
 
-## 常用命令
+## 2. 常用命令
 
-项目使用 Bun 管理依赖、构建和测试。
+项目命令定义在 `package.json`：
 
 ```bash
 # 安装依赖
@@ -31,7 +33,7 @@ bun run build:dev
 # 开发构建并启用实验功能
 bun run build:dev:full
 
-# 编译构建
+# 编译构建，输出 dist 下的单文件可执行产物
 bun run compile
 
 # 从源码运行
@@ -46,8 +48,9 @@ bun test
 - `package.json`
 - `scripts/build.ts`
 - `CLAUDE.md`
+- `TEST_PLAN.md`
 
-## 构建系统
+## 3. 构建系统
 
 构建逻辑集中在 `scripts/build.ts`。
 
@@ -57,263 +60,519 @@ bun test
 src/entrypoints/cli.tsx
 ```
 
-构建脚本负责：
+构建脚本的主要职责：
 
-- 调用 Bun build。
-- 根据参数选择输出文件。
-- 处理 feature flags。
-- 支持开发构建和完整实验功能构建。
+- 读取 `package.json` 中的版本信息。
+- 根据参数选择输出文件：
+  - `bun run build` → `./my-code`
+  - `bun run build:dev` → `./my-code-dev`
+  - `bun run compile` → `./dist/my-code`
+- 使用 `bun build --compile --target bun --format esm --minify --bytecode --packages bundle` 生成单文件可执行产物。
+- 注入 `MACRO.VERSION`、`MACRO.BUILD_TIME`、`MACRO.PACKAGE_URL`、`MACRO.FEEDBACK_CHANNEL` 等构建期常量。
+- 通过 `--feature` / `--feature-set=dev-full` 控制 `bun:bundle` feature flag，配合源码中的 `feature('...')` 做死代码消除。
+- 设置 external native 包，例如 `@ant/*`、`audio-capture-napi`、`image-processor-napi` 等。
 
-常见输出包括：
+默认 feature 当前包含：
 
-- `./my-code`
-- `./my-code-dev`
-- `./dist/my-code` 或 `./dist/cli`
+```text
+VOICE_MODE
+```
 
-## CLI 启动链路
+`build:dev:full` 会额外启用一组实验功能，例如 `BRIDGE_MODE`、`ULTRAPLAN`、`TEAMMEM`、`VOICE_MODE`、`TOKEN_BUDGET`、`AGENT_TRIGGERS` 等。
 
-CLI 启动链路大致如下：
+## 4. CLI 启动链路
+
+源码入口链路：
 
 ```text
 package.json scripts
-  -> scripts/build.ts
+  -> scripts/build.ts / bun run dev
   -> src/entrypoints/cli.tsx
-  -> src/main.ts
-  -> REPL / commands / tools
+  -> src/main.tsx
+  -> commander CLI / headless -p / interactive REPL
+  -> query loop / commands / tools
 ```
 
 关键文件：
 
 - `src/entrypoints/cli.tsx`
   - CLI bootstrap。
-  - 包含 fast-path 和动态 import 逻辑。
-  - 普通路径最终加载 `src/main.ts`。
+  - 在加载完整 CLI 前处理 fast path：`--version`、system prompt dump、Chrome MCP、daemon、bridge、background session、template、worktree+tmux 等。
+  - 普通路径启动 early input capture，然后动态加载 `src/main.tsx`。
 
-- `src/main.ts`
-  - CLI 主入口。
-  - 初始化运行环境并进入交互流程。
+- `src/main.tsx`
+  - 完整 CLI 主入口。
+  - 初始化配置、settings、telemetry/gates、MCP、plugins、skills、权限上下文、初始模型、session 状态等。
+  - 使用 Commander 注册命令行参数和子命令。
+  - 根据参数进入 headless `-p/--print`、server/open/remote/assistant 等路径，或启动交互式 REPL。
 
-- `src/screens/REPL.tsx`
-  - 交互式终端 UI 主循环。
-  - 基于 Ink / React。
+- `src/replLauncher.tsx`、`src/screens/REPL.tsx`
+  - 交互式 Ink/React UI 主循环。
+  - 连接 app state、prompt input、message rendering、commands、tools、MCP、background tasks 等运行态。
 
-- `src/commands.ts`
-  - slash command 注册入口。
+注意：旧文档中提到的 `src/main.ts` 当前实际文件为 `src/main.tsx`。
 
-- `src/tools.ts`
-  - 工具注册入口。
-
-## 核心目录概览
+## 5. 核心目录概览
 
 ```text
-src/entrypoints/  CLI 入口
-src/screens/      终端 UI / REPL
-src/components/   Ink / React UI 组件
-src/commands/     slash command 实现
-src/tools/        工具实现
-src/services/     API、OAuth、MCP、analytics 等服务层
-src/state/        应用状态管理
-src/hooks/        React hooks
-src/skills/       skill 系统
-src/plugins/      plugin 系统
-src/bridge/       IDE bridge
-src/voice/        语音输入相关能力
-src/tasks/        后台任务管理
-src/utils/model/  provider / model 配置与选择逻辑
+src/entrypoints/        CLI bootstrap 与 init
+src/main.tsx            完整 CLI 主入口和 Commander 注册
+src/screens/            交互式 REPL / Ink UI
+src/components/         终端 UI 组件
+src/commands.ts         slash command 聚合注册
+src/commands/           slash command 实现
+src/tools.ts            tool 聚合注册、过滤、MCP 合并
+src/tools/              内置工具实现，例如 Bash/Read/Edit/Agent/Skill/Task 等
+src/query.ts            主 query loop
+src/query/              query 依赖注入、配置、token budget、状态迁移
+src/services/api/       Anthropic client、streaming、OpenAI adapter、API 支持模块
+src/services/compact/   manual/auto/micro compact 与 context 管理
+src/services/mcp/       MCP client、server config、resources、commands、tools
+src/services/analytics/ analytics/growthbook gates/stubs
+src/state/              AppState 类型、store、状态变更处理
+src/hooks/              React hooks
+src/skills/             skill 系统
+src/plugins/            plugin 系统
+src/bridge/             remote control / IDE bridge 相关能力
+src/tasks/              background task 状态与管理
+src/utils/model/        provider/model/config/resolver/capability 逻辑
+scripts/build.ts        Bun 单文件构建脚本
+docs/                   项目文档
 ```
 
-## 模型请求主链路
+## 6. 运行时状态与 UI 结构
 
-模型调用的主流程如下：
+状态核心在：
+
+- `src/state/store.ts`
+- `src/state/AppStateStore.ts`
+- `src/state/AppState.js` / `src/state/onChangeAppState.js`
+
+`createStore()` 是一个轻量 store：保存 `state`、提供 `getState()` / `setState()` / `subscribe()`，并在状态变更时调用 `onChange`。
+
+`AppState` 保存交互式会话的大部分运行态，例如：
+
+- 当前 `mainLoopModel` / session model。
+- `toolPermissionContext`。
+- MCP clients/tools/commands/resources。
+- plugins、agent definitions、tasks、todos、file history。
+- REPL bridge、remote session、footer selection、UI 展开状态等。
+
+交互式 UI 通过 Ink/React 组件订阅这些状态；headless 模式也会构造 store，但输出路径不同。
+
+## 7. Slash command 架构
+
+命令聚合入口：`src/commands.ts`。
+
+主要机制：
+
+- 静态导入常用命令，例如 `clear`、`compact`、`config`、`context`、`model`、`mcp`、`memory`、`status`、`skills`、`hooks` 等。
+- 使用 `feature('...')` 或 `process.env.USER_TYPE === 'ant'` 条件加载实验/内部命令，构建时可被 DCE。
+- `COMMANDS` 使用 `memoize` 延迟构建，避免模块初始化阶段读取配置。
+- `getCommands(cwd)` 会合并：
+  - bundled skills
+  - builtin plugin skills
+  - skill dir commands
+  - workflow commands
+  - plugin commands
+  - plugin skills
+  - 内置 commands
+- `meetsAvailabilityRequirement()` 当前直接返回 `true`，表示本项目移除了原登录/订阅路径对命令可见性的限制。
+
+命令类型由 `src/types/command.js` 定义，常见形态包括 local JSX command、prompt command、local command 等。
+
+## 8. Tool 架构
+
+工具聚合入口：`src/tools.ts`。
+
+核心函数：
+
+- `getAllBaseTools()`：返回当前环境中可能存在的所有内置工具。
+- `getTools(permissionContext)`：根据 simple mode、REPL mode、feature flags、权限 deny rules 和 `tool.isEnabled()` 过滤工具。
+- `assembleToolPool(permissionContext, mcpTools)`：合并内置工具与 MCP tools，并按名称排序去重，保持 prompt cache 稳定。
+- `getMergedTools(permissionContext, mcpTools)`：简单合并内置工具与 MCP tools。
+
+常见内置工具包括：
+
+- `AgentTool`
+- `BashTool`
+- `FileReadTool`
+- `FileEditTool`
+- `FileWriteTool`
+- `GlobTool` / `GrepTool`
+- `NotebookEditTool`
+- `WebFetchTool` / `WebSearchTool`
+- `TodoWriteTool`
+- `SkillTool`
+- `AskUserQuestionTool`
+- `EnterPlanModeTool` / `ExitPlanModeV2Tool`
+- `TaskCreateTool` / `TaskGetTool` / `TaskUpdateTool` / `TaskListTool`（由 todo v2 gate 控制）
+- `ListMcpResourcesTool` / `ReadMcpResourceTool`
+
+MCP tools 会在运行时进入 `AppState.mcp.tools`，再通过 tool pool 参与模型请求。
+
+## 9. 模型请求主链路
+
+模型调用主流程：
 
 ```text
-src/query.ts
-  -> deps.callModel
-  -> src/query/deps.ts
-  -> queryModelWithStreaming
+REPL/headless input
+  -> src/query.ts query()
+  -> queryLoop()
+  -> productionDeps()
+  -> queryModelWithStreaming()
   -> src/services/api/claude.ts
-  -> getAnthropicClient
+  -> getAnthropicClient()
   -> src/services/api/client.ts
+  -> Anthropic SDK 或 fetch adapter
 ```
 
 关键文件：
 
 - `src/query.ts`
   - 主 query loop。
-  - 负责组织 messages、system prompt、tools、token budget、compact 状态等。
-  - 在主循环中通过 `deps.callModel(...)` 发起模型调用。
+  - 负责组织 messages、system prompt、user/system context、tool definitions、permission context、token budget、compact、fallback、stop hooks、tool execution 等。
+  - 每轮通过 `deps.callModel(...)` 发起 streaming 模型调用。
+  - 当模型返回 `tool_use` 后，进入 tool orchestration，再把 `tool_result` 追加回上下文，继续 loop。
 
 - `src/query/deps.ts`
-  - production dependency 注入。
-  - 将 `callModel` 绑定到 `queryModelWithStreaming`。
+  - production 依赖注入点。
+  - 当前注入：`queryModelWithStreaming`、`microcompactMessages`、`autoCompactIfNeeded`、`randomUUID`。
+  - 测试可以通过 `QueryParams.deps` 注入 fake。
 
 - `src/services/api/claude.ts`
-  - Claude / Anthropic Messages API 调用核心。
-  - 构造请求参数。
-  - 处理 streaming、fallback、tool use、usage 等逻辑。
+  - Anthropic Messages 请求构造与 streaming 处理核心。
+  - 负责 max output tokens、thinking、tools、betas、fallback、usage、stream event 等 API 层细节。
 
 - `src/services/api/client.ts`
-  - API client 创建入口。
-  - 根据 provider 选择 Anthropic、Bedrock、Vertex、Foundry、OpenAI、Codex 等路径。
+  - Anthropic client 创建入口。
+  - 根据 Bedrock/Foundry/Vertex 环境变量走对应 SDK。
+  - 否则读取本项目 provider 配置，选择 Anthropic base URL 或 OpenAI fetch adapter。
 
-## Provider / Model 配置
+## 10. Provider / Model 配置系统
 
-provider 和模型配置主要集中在：
+配置核心文件：
 
-- `src/utils/model/providers.ts`
 - `src/utils/model/configs.ts`
-- `src/utils/model/modelConfigs.ts`
-- `models.config.example.json`
-
-当前 provider 类型包括：
-
-```text
-firstParty
-bedrock
-vertex
-foundry
-openai
-custom1
-custom2
-custom3
-```
-
-provider 选择逻辑大致包括：
-
-- 优先读取 `MY_CODE_PROVIDER` 指定的 custom provider。
-- 然后判断 Bedrock / Vertex / Foundry / OpenAI 相关环境变量。
-- 默认使用 first-party Anthropic provider。
-
-模型配置文件优先级大致为：
-
-```text
-CLAUDE_CODE_MODEL_CONFIG
-MY_CODE_CONFIG_DIR/models.config.json
-~/.my-code/models.config.json
-```
-
-`models.config.example.json` 提供了多 provider 配置样例，包括：
-
-- `apiUrl`
-- `apiKey`
-- `defaultModel`
-- provider-specific model 配置
-
-## OpenAI / Codex 适配
-
-OpenAI / Codex 适配是当前项目中最重要的自定义改造之一。
-
-相关文件：
-
-- `src/services/api/client.ts`
-- `src/services/api/codex-fetch-adapter.ts`
-- `src/services/api/openai-fetch-adapter.ts`
-- `src/services/api/codex-fetch-adapter.test.ts`
-
-设计思路是保留 Claude Code 原有的 Anthropic SDK 调用方式，但在 client 层注入自定义 fetch：
-
-```text
-Anthropic SDK 请求 /v1/messages
-  -> client.ts 注入自定义 fetch
-  -> codex-fetch-adapter.ts 拦截请求
-  -> 转译为 Codex Responses API
-  -> 将 response / stream 转回 Claude Code 期望的格式
-```
-
-Codex 适配层承担的职责包括：
-
-- 将 Anthropic Messages API 请求转换为 Codex Responses API 请求。
-- 转换 system / user / assistant / tool messages。
-- 映射 `tool_use` 和 `tool_result`。
-- 处理 streaming event。
-- 注入或转换 token usage。
-- 处理错误响应。
-
-该部分是高风险热路径，因为它位于 Claude Code 原 query pipeline 和外部模型后端之间。
-
-## 测试情况
-
-当前测试使用 Bun 内置测试框架。
-
-探查时基础测试结果为：
-
-```text
-50 pass, 0 fail
-56 expect() calls
-4 files
-```
-
-常用测试命令：
-
-```bash
-bun test
-```
-
-相关文件：
-
-- `TEST_PLAN.md`
-- `src/services/api/codex-fetch-adapter.test.ts`
-
-## 当前改造热点
-
-从当前工作区状态和热路径看，主要改动集中在：
-
-- `src/services/api/client.ts`
-- `src/services/api/codex-fetch-adapter.ts`
-- `src/services/api/openai-fetch-adapter.ts`
-- `src/utils/model/providers.ts`
-- `src/utils/model/configs.ts`
-- `src/utils/model/fetchModels.ts`
 - `src/utils/model/model.ts`
 - `src/utils/model/modelOptions.ts`
 - `src/utils/model/modelStrings.ts`
 - `models.config.example.json`
-- `README.md`
 
-另外 `.omc/**` 下存在运行态文件变更，提交业务代码时应避免将 `.omc/state/**` 等会话状态文件混入业务提交。
+默认配置路径：
 
-## 推荐阅读顺序
+```text
+~/.my-code/models.config.json
+```
 
-如果继续开发或排查问题，建议按以下顺序阅读：
+配置路径优先级：
 
-1. `README.md`、`CLAUDE.md`
-   - 理解项目命令、构建方式和目录约定。
+```text
+MY_CODE_MODEL_CONFIG
+MY_CODE_CONFIG_DIR/models.config.json
+~/.my-code/models.config.json
+```
 
-2. `src/entrypoints/cli.tsx`、`src/main.ts`
-   - 理解 CLI 如何启动。
+当前 provider 解析优先级：
 
-3. `src/query.ts`、`src/query/deps.ts`
-   - 理解主请求循环和模型调用入口。
+```text
+MY_CODE_PROVIDER
+models.config.json currentProvider
+models.config.json default
+```
 
-4. `src/services/api/claude.ts`、`src/services/api/client.ts`
-   - 理解 Anthropic SDK 调用、client 创建和 provider 分流。
+provider schema 关键字段：
 
-5. `src/utils/model/providers.ts`、`src/utils/model/configs.ts`
-   - 理解 provider / model 的选择和配置加载。
+```ts
+{
+  protocol: 'anthropic' | 'openai'
+  baseUrl?: string
+  apiUrl?: string
+  apiKey?: string
+  apiKeyEnv?: string
+  defaultModel?: string
+  models?: Array<string | {
+    id?: string
+    name?: string
+    description?: string
+    contextWindow?: number
+    maxOutputTokens?: number
+  }>
+  proxy?: {
+    enable?: boolean
+    http?: string
+    socks5?: string
+  }
+}
+```
 
-6. `src/services/api/codex-fetch-adapter.ts`
-   - 深入理解 Codex/OpenAI 协议适配层。
+重要行为：
 
-## 后续开发建议
+- `resolveCurrentProvider()` 要求 provider 必须存在，否则明确报错。
+- `resolveProviderProtocol()` 只允许 `anthropic` 或 `openai`。
+- `resolveProviderModels()` 只返回当前 provider 下的模型；如果 `defaultModel` 未出现在 `models` 中，会自动补到列表开头。
+- `resolveModelMetadata(model)` 要求模型必须有有效 `contextWindow`，用于 `/context` 和 auto compact。
+- `getConfigApiKey()` 优先读取 `apiKey`，否则读取 provider 声明的 `apiKeyEnv`。
+- `getConfigApiUrl()` 读取 `baseUrl` 或兼容旧字段 `apiUrl`。
+- `getConfigDefaultModel()` 是默认主模型的重要来源。
 
-- 如果调整 provider 或模型选择策略，应重点验证 `src/utils/model/*` 与 `src/services/api/client.ts` 的联动。
-- 如果调整 Codex/OpenAI 适配，应优先补充或更新 adapter 测试，尤其是 streaming、tool use、usage 和错误响应。
-- 如果调整 query pipeline，应谨慎评估 compact、token budget、tool orchestration、fallback 等逻辑的影响范围。
-- 提交前建议运行：
+## 11. `/model` 与 provider-scoped model picker
+
+`/model` 入口：
+
+- `src/commands/model/index.ts`
+- `src/commands/model/model.tsx`
+- `src/components/ModelPicker.tsx`
+- `src/utils/model/modelOptions.ts`
+
+当前 `ModelPicker` 使用 `getProviderScopedModelOptions()`，而不是原 Claude Code 的订阅/内置模型列表。
+
+`getProviderScopedModelOptions()` 行为：
+
+```text
+resolveProviderModels()
+  -> 当前 provider models
+  -> ModelOption[] { value, label, description }
+```
+
+这意味着：
+
+- `/model` 只展示当前 provider 配置的模型。
+- 切换 provider 后，模型列表随 provider 变化。
+- 未配置在当前 provider 下的模型不会被静默选中。
+
+## 12. Context window 与 auto compact
+
+相关文件：
+
+- `src/utils/context.ts`
+- `src/services/compact/autoCompact.ts`
+- `src/commands/context/index.js/tsx`
+
+关键行为：
+
+- `getContextWindowForModel(model)` 会调用 `resolveModelMetadata(model)`，优先使用 `models.config.json` 中当前 provider 的 `contextWindow`。
+- `[1m]` suffix、capability、beta header 和 ant-only override 会在配置 metadata 基础上进一步影响返回值。
+- `getEffectiveContextWindowSize(model)` 使用 `resolveModelMetadata(model).contextWindow` 减去 compact summary 预留 token。
+- auto compact threshold 基于 effective context window 计算。
+- 缺少 `contextWindow` 会明确报错，避免自动 fallback 到错误的 Claude 内置窗口。
+
+因此：新增模型时必须在配置中写入准确的 `contextWindow`，否则 `/context` 与 auto compact 都无法可靠运行。
+
+## 13. OpenAI-compatible fetch adapter
+
+当前 OpenAI 适配核心文件：
+
+- `src/services/api/client.ts`
+- `src/services/api/openai-fetch-adapter.ts`
+
+client 选择逻辑：
+
+```text
+getAnthropicClient()
+  -> getConfigApiKey()
+  -> getConfigApiUrl()
+  -> getConfigProtocol()
+  -> protocol === 'openai'
+       ? createOpenAIFetch(apiKey, baseUrl)
+       : Anthropic SDK baseURL/fetch
+```
+
+OpenAI adapter 的职责：
+
+- 拦截 Anthropic SDK 发往 `/v1/messages` 的请求。
+- 将 Anthropic Messages body 转为 OpenAI Chat Completions body。
+- 转换 system prompt、user/assistant messages、image、tool definitions。
+- 将 Anthropic `tool_use` / `tool_result` 映射为 OpenAI tool calls / tool messages。
+- 请求 OpenAI-compatible `/v1/chat/completions`。
+- 将 OpenAI SSE stream 转换回 Anthropic SSE event 格式：
+  - `message_start`
+  - `content_block_start`
+  - `content_block_delta`
+  - `content_block_stop`
+  - `message_delta`
+  - `message_stop`
+- 将 OpenAI 错误转换为 Anthropic SDK 可消费的 JSON error response。
+
+该层是本项目最关键的兼容热路径之一，因为上层 query loop 仍按 Anthropic Messages/streaming/tool_use 语义工作。
+
+## 14. Agent / Team 模型路由
+
+相关逻辑在 `src/utils/model/configs.ts`：
+
+- `resolveAgentModel()`
+- `resolveTeamModel()`
+- `resolveConfiguredRoute()`
+- `validateProviderModel()`
+
+路由顺序：
+
+```text
+Agent:
+1. toolSpecifiedModel
+2. agents.models[agentName]
+3. agents.defaultModel
+4. currentModel
+5. agent frontmatter model / alias
+6. 无法解析则报错
+
+Team:
+1. toolSpecifiedModel
+2. teams.models[role]
+3. agents.models[role]
+4. teams.defaultModel
+5. agents.defaultModel
+6. currentModel
+7. agent frontmatter model / alias
+8. 无法解析则报错
+```
+
+所有解析结果都会通过 `validateProviderModel()` 校验，确保模型属于当前 provider。这样可以避免 subagent/team 静默 fallback 到 `sonnet`、`opus`、`haiku` 等 Claude 默认别名。
+
+## 15. 配置示例
+
+最小 OpenAI-compatible 配置：
+
+```json
+{
+  "currentProvider": "openai",
+  "providers": {
+    "openai": {
+      "protocol": "openai",
+      "baseUrl": "https://api.openai.com/v1",
+      "apiKeyEnv": "MY_CODE_OPENAI_API_KEY",
+      "defaultModel": "gpt-5.4",
+      "models": [
+        {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "description": "Default coding model",
+          "contextWindow": 128000,
+          "maxOutputTokens": 16000
+        }
+      ]
+    }
+  }
+}
+```
+
+最小 Anthropic-compatible 配置：
+
+```json
+{
+  "currentProvider": "anthropic",
+  "providers": {
+    "anthropic": {
+      "protocol": "anthropic",
+      "baseUrl": "https://api.anthropic.com",
+      "apiKeyEnv": "MY_CODE_ANTHROPIC_API_KEY",
+      "defaultModel": "claude-sonnet-4-6",
+      "models": [
+        {
+          "id": "claude-sonnet-4-6",
+          "name": "Claude Sonnet 4.6",
+          "description": "Default Anthropic model",
+          "contextWindow": 200000,
+          "maxOutputTokens": 16000
+        }
+      ]
+    }
+  }
+}
+```
+
+## 16. 测试与验证建议
+
+常用验证：
 
 ```bash
 bun test
 bun run build
+./my-code --version
+./my-code -p "summarize this repository"
 ```
 
-## 总结
+重点测试方向：
 
-本项目的核心改造点不是终端 UI，而是：
+- provider/model config 解析。
+- `MY_CODE_MODEL_CONFIG` / `MY_CODE_CONFIG_DIR` / `MY_CODE_PROVIDER` 覆盖。
+- `/model` 只展示当前 provider 模型。
+- `contextWindow` 缺失时报错。
+- OpenAI adapter 的 streaming、tool call、tool result、usage、错误响应。
+- Agent/Team 模型路由不会跨 provider fallback。
+- 构建产物 `./my-code` / `./my-code-dev` 能直接运行。
+
+## 17. 推荐阅读顺序
+
+后续开发建议按以下顺序阅读：
+
+1. `README.md`、`CLAUDE.md`、`docs/project-architecture-overview.md`
+   - 理解项目目标、命令、构建方式和目录约定。
+
+2. `scripts/build.ts`、`src/entrypoints/cli.tsx`、`src/main.tsx`
+   - 理解构建产物如何生成，以及 CLI 如何启动。
+
+3. `src/commands.ts`、`src/tools.ts`
+   - 理解 slash command 与 tool 如何注册、过滤和进入模型上下文。
+
+4. `src/query.ts`、`src/query/deps.ts`
+   - 理解主请求循环、工具调用回路、compact 与 fallback。
+
+5. `src/services/api/claude.ts`、`src/services/api/client.ts`
+   - 理解 Anthropic SDK 调用与 provider 分流。
+
+6. `src/utils/model/configs.ts`、`src/utils/model/model.ts`、`src/utils/model/modelOptions.ts`
+   - 理解 provider/model 配置、默认模型、`/model` 列表和 agent/team 路由。
+
+7. `src/services/api/openai-fetch-adapter.ts`
+   - 深入理解 OpenAI-compatible 协议转换层。
+
+8. `src/utils/context.ts`、`src/services/compact/autoCompact.ts`
+   - 理解 context window、compact 阈值和大上下文行为。
+
+## 18. 后续开发注意事项
+
+- 修改 provider/model 解析时，应同时检查：
+  - `src/utils/model/configs.ts`
+  - `src/utils/model/model.ts`
+  - `src/utils/model/modelOptions.ts`
+  - `src/services/api/client.ts`
+  - `src/utils/context.ts`
+  - `src/services/compact/autoCompact.ts`
+
+- 修改 OpenAI-compatible 适配时，应重点验证：
+  - streaming event 顺序。
+  - text delta。
+  - tool call id/name/arguments 增量。
+  - tool result 回传格式。
+  - error response 是否能被 Anthropic SDK/query loop 正确消费。
+
+- 新增模型时，应至少配置：
+  - `id`
+  - `name`
+  - `description`
+  - `contextWindow`
+  - `maxOutputTokens`
+
+- 构建产物和运行态文件通常不应提交：
+  - `node_modules/`
+  - `dist/`
+  - `my-code`
+  - `my-code-dev`
+  - `.omc/state/**`
+  - `.claude/**`
+
+## 19. 总结
+
+本项目的核心不是重新实现终端 UI，而是在保留 Claude Code 原运行时的基础上，增加一层本地可控的 provider/model 配置与协议适配：
 
 ```text
-Claude Code 原 query pipeline
-  + 多 provider / model 配置系统
-  + OpenAI / Codex fetch adapter 协议转换层
+Claude Code 原 CLI / REPL / query pipeline
+  + Bun 单文件构建
+  + ~/.my-code provider/model 配置
+  + provider-scoped /model 与 context metadata
+  + OpenAI-compatible fetch adapter
+  + agent/team 模型路由校验
 ```
 
-因此后续维护时，最需要关注的是模型调用链路的兼容性、streaming 行为、tool use 映射以及不同 provider 下的配置选择是否一致。
+后续维护最需要关注的是模型调用链路的兼容性、streaming/tool_use 语义、context window/auto compact 一致性，以及所有模型选择逻辑是否严格限定在当前 provider 配置内。

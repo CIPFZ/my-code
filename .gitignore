@@ -1,9 +1,18 @@
+# dependencies
 node_modules/
+
+# build outputs
 dist/
 /cli
 /cli-dev
 my-code
 my-code-dev
-openclaw/
+
+# local runtime state
 .omc/
 .claude/
+
+# temporary local projects / debug scripts
+openclaw/
+test-*.ts
+test-*.mjs
