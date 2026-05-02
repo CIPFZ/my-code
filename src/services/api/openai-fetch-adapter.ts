@@ -620,7 +620,7 @@ async function translateOpenAIStreamToAnthropic(
                       if (!inToolCall && fn) {
                         currentToolCallId = (tc.id as string) || `call_${Date.now()}_${toolCallIndex++}`
                         currentToolCallName = (fn.name as string) || ''
-                        currentToolCallArgs = (fn.arguments as string) || ''
+                        currentToolCallArgs = ''
                         inToolCall = true
                         hadToolCalls = true
 
