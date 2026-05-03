@@ -1,5 +1,7 @@
 node_modules/
 dist/
+my-code
+my-code-dev
 cli
 cli-dev
 openclaw/

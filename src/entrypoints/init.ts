@@ -4,7 +4,6 @@ import '../utils/config.js'
 import memoize from 'lodash-es/memoize.js'
 import { getIsNonInteractiveSession } from 'src/bootstrap/state.js'
 import { shutdownLspServerManager } from '../services/lsp/manager.js'
-import { populateOAuthAccountInfoIfNeeded } from '../services/oauth/client.js'
 import {
   initializePolicyLimitsLoadingPromise,
   isPolicyLimitsEligible,
@@ -31,6 +30,7 @@ import {
 import {
   applySafeConfigEnvironmentVariables,
 } from '../utils/managedEnv.js'
+import { ensureModelsConfig } from '../utils/model/providerConfig.js'
 import { configureGlobalMTLS } from '../utils/mtls.js'
 import {
   ensureScratchpadDir,
@@ -44,8 +44,12 @@ export const init = memoize(async (): Promise<void> => {
   logForDiagnosticsNoPII('info', 'init_started')
   profileCheckpoint('init_function_start')
 
-  // Validate configs are valid and enable configuration system
   try {
+    // Ensure first run creates ~/.my-code and the provider config template before
+    // other subsystems read config-relative paths.
+    ensureModelsConfig()
+
+    // Validate configs are valid and enable configuration system
     const configsStart = Date.now()
     enableConfigs()
     logForDiagnosticsNoPII('info', 'init_configs_enabled', {
@@ -72,10 +76,7 @@ export const init = memoize(async (): Promise<void> => {
     setupGracefulShutdown()
     profileCheckpoint('init_after_graceful_shutdown')
 
-    // Populate OAuth account info if it is not already cached in config. This is needed since the
-    // OAuth account info may not be populated when logging in through the VSCode extension.
-    void populateOAuthAccountInfoIfNeeded()
-    profileCheckpoint('init_after_oauth_populate')
+    profileCheckpoint('init_after_models_config')
 
     // Initialize JetBrains IDE detection asynchronously (populates cache for later sync access)
     void initJetBrainsDetection()

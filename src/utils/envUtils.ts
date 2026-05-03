@@ -1,17 +1,37 @@
 import memoize from 'lodash-es/memoize.js'
+import { existsSync, mkdirSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 
-// Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
+export const MY_CODE_APP_NAME = process.env.MY_CODE_APP_NAME ?? 'my-code'
+export const MY_CODE_CONFIG_DIR_NAME =
+  process.env.MY_CODE_CONFIG_DIR_NAME ?? '.my-code'
+export const MY_CODE_MODELS_CONFIG_FILE =
+  process.env.MY_CODE_MODELS_CONFIG_FILE ?? 'models.config.json'
+
+// Memoized: 150+ callers, many on hot paths. Keyed off MY_CODE_CONFIG_DIR so
 // tests that change the env var get a fresh value without explicit cache.clear.
 export const getClaudeConfigHomeDir = memoize(
   (): string => {
     return (
-      process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+      process.env.MY_CODE_CONFIG_DIR ??
+      process.env.CLAUDE_CONFIG_DIR ??
+      join(homedir(), MY_CODE_CONFIG_DIR_NAME)
     ).normalize('NFC')
   },
-  () => process.env.CLAUDE_CONFIG_DIR,
+  () => `${process.env.MY_CODE_CONFIG_DIR ?? ''}\0${process.env.CLAUDE_CONFIG_DIR ?? ''}`,
 )
+
+export function ensureMyCodeConfigHomeDir(): string {
+  const configDir = getClaudeConfigHomeDir()
+  if (!existsSync(configDir)) {
+    mkdirSync(configDir, { recursive: true })
+  }
+  for (const dirname of ['sessions', 'projects', 'logs', 'cache']) {
+    mkdirSync(join(configDir, dirname), { recursive: true })
+  }
+  return configDir
+}
 
 export function getTeamsDir(): string {
   return join(getClaudeConfigHomeDir(), 'teams')

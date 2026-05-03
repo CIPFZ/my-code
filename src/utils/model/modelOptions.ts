@@ -33,6 +33,7 @@ import {
 } from './model.js'
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
+import { getConfiguredModels, getCurrentProviderConfig } from './providerConfig.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -297,7 +298,35 @@ function getOpusPlanOption(): ModelOption {
 
 // @[MODEL LAUNCH]: Update the model picker lists below to include/reorder options for the new model.
 // Each user tier (ant, Max/Team Premium, Pro/Team Standard/Enterprise, PAYG 1P, PAYG 3P) has its own list.
+function getConfiguredModelOptions(): ModelOption[] {
+  const provider = getCurrentProviderConfig()
+  const models = getConfiguredModels()
+  if (!provider || models.length === 0) return []
+
+  const currentModel = provider.defaultModel ?? models[0]?.id ?? 'unknown'
+  return [
+    {
+      value: null,
+      label: 'Default (recommended)',
+      description: `Use the default model (currently ${currentModel})`,
+      descriptionForModel: `Default model (currently ${currentModel})`,
+    },
+    ...models.map(model => ({
+      value: model.id,
+      label: model.name ?? model.id,
+      description: model.description ?? model.id,
+      descriptionForModel: model.description
+        ? `${model.description} (${model.id})`
+        : model.id,
+    })),
+  ]
+}
+
 function getModelOptionsBase(fastMode = false): ModelOption[] {
+  if (getCurrentProviderConfig()) {
+    return getConfiguredModelOptions()
+  }
+
   if (process.env.USER_TYPE === 'ant') {
     // Build options from antModels config
     const antModelOptions: ModelOption[] = getAntModels().map(m => ({

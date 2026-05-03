@@ -7,13 +7,8 @@ import {
 } from 'src/utils/cch.js'
 import type { GoogleAuth } from 'google-auth-library'
 import {
-  checkAndRefreshOAuthTokenIfNeeded,
   getAnthropicApiKey,
   getApiKeyFromApiKeyHelper,
-  getClaudeAIOAuthTokens,
-  getCodexOAuthTokens,
-  isClaudeAISubscriber,
-  isCodexSubscriber,
   refreshAndGetAwsCredentials,
   refreshGcpCredentialsIfNeeded,
 } from 'src/utils/auth.js'
@@ -28,14 +23,14 @@ import {
   getIsNonInteractiveSession,
   getSessionId,
 } from '../../bootstrap/state.js'
-import { getOauthConfig } from '../../constants/oauth.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
 import {
   getAWSRegion,
   getVertexRegionForModel,
   isEnvTruthy,
 } from '../../utils/envUtils.js'
-import { createCodexFetch } from './codex-fetch-adapter.js'
+import { getCurrentProviderConfig } from 'src/utils/model/providerConfig.js'
+import { createOpenAIFetch } from './openai-fetch-adapter.js'
 
 /**
  * Environment variables for different client types:
@@ -136,16 +131,7 @@ export async function getAnthropicClient({
     defaultHeaders['x-anthropic-additional-protection'] = 'true'
   }
 
-  logForDebugging('[API:auth] OAuth token check starting')
-  await checkAndRefreshOAuthTokenIfNeeded()
-  logForDebugging('[API:auth] OAuth token check complete')
-
-  if (!isClaudeAISubscriber()) {
-    await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
-  }
-
   const resolvedFetch = buildFetch(fetchOverride, source)
-
   const ARGS = {
     defaultHeaders,
     maxRetries,
@@ -158,6 +144,40 @@ export async function getAnthropicClient({
       fetch: resolvedFetch,
     }),
   }
+  const providerConfig = getCurrentProviderConfig()
+  if (providerConfig) {
+    Object.assign(defaultHeaders, providerConfig.headers ?? {})
+    const configuredBaseURL = providerConfig.baseURL ?? providerConfig.apiUrl
+    const anthropicBaseURL = configuredBaseURL?.replace(/\/v1\/?$/, '')
+
+    if (providerConfig.protocol === 'openai') {
+      if (!configuredBaseURL) {
+        throw new Error('OpenAI provider requires apiUrl or baseURL in models.config.json')
+      }
+      const openaiFetch = createOpenAIFetch({
+        baseURL: configuredBaseURL,
+        apiKey: providerConfig.apiKey,
+        headers: providerConfig.headers,
+        fetch: (resolvedFetch ?? globalThis.fetch) as typeof globalThis.fetch,
+      })
+      return new Anthropic({
+        apiKey: 'openai-compatible-placeholder',
+        ...ARGS,
+        fetch: openaiFetch,
+        ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+      })
+    }
+
+    return new Anthropic({
+      apiKey: apiKey || providerConfig.apiKey || getAnthropicApiKey(),
+      ...(anthropicBaseURL ? { baseURL: anthropicBaseURL } : {}),
+      ...ARGS,
+      ...(isDebugToStdErr() && { logger: createStderrLogger() }),
+    })
+  }
+
+  await configureApiKeyHeaders(defaultHeaders, getIsNonInteractiveSession())
+
   if (isEnvTruthy(process.env.CLAUDE_CODE_USE_BEDROCK)) {
     const { AnthropicBedrock } = await import('@anthropic-ai/bedrock-sdk')
     // Use region override for small fast model if specified
@@ -305,32 +325,8 @@ export async function getAnthropicClient({
     return new AnthropicVertex(vertexArgs) as unknown as Anthropic
   }
 
-  // ── Codex (OpenAI) provider via fetch adapter ─────────────────────
-  if (isCodexSubscriber()) {
-    const codexTokens = getCodexOAuthTokens()
-    if (codexTokens?.accessToken) {
-      const codexFetch = createCodexFetch(codexTokens.accessToken)
-      const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-        apiKey: 'codex-placeholder', // SDK requires a key but the fetch adapter handles auth
-        ...ARGS,
-        fetch: codexFetch as unknown as typeof globalThis.fetch,
-        ...(isDebugToStdErr() && { logger: createStderrLogger() }),
-      }
-      return new Anthropic(clientConfig)
-    }
-  }
-
-  // Determine authentication method based on available tokens
   const clientConfig: ConstructorParameters<typeof Anthropic>[0] = {
-    apiKey: isClaudeAISubscriber() ? null : apiKey || getAnthropicApiKey(),
-    authToken: isClaudeAISubscriber()
-      ? getClaudeAIOAuthTokens()?.accessToken
-      : undefined,
-    // Set baseURL from OAuth config when using staging OAuth
-    ...(process.env.USER_TYPE === 'ant' &&
-    isEnvTruthy(process.env.USE_STAGING_OAUTH)
-      ? { baseURL: getOauthConfig().BASE_API_URL }
-      : {}),
+    apiKey: apiKey || getAnthropicApiKey(),
     ...ARGS,
     ...(isDebugToStdErr() && { logger: createStderrLogger() }),
   }

@@ -101,6 +101,10 @@ const TEAMMATE_ENV_VARS = [
   'CLAUDE_CODE_USE_FOUNDRY',
   // Custom API endpoint
   'ANTHROPIC_BASE_URL',
+  // my-code provider/model configuration
+  'MY_CODE_CONFIG_DIR',
+  'MY_CODE_MODEL_CONFIG',
+  'MY_CODE_PROVIDER',
   // Config directory override
   'CLAUDE_CONFIG_DIR',
   // CCR marker — teammates need this for CCR-aware code paths. Auth finds

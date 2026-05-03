@@ -1,13 +1,12 @@
 {
-  "name": "claude-code-source-snapshot",
+  "name": "my-code",
   "version": "2.1.87",
   "private": true,
-  "description": "Reconstructed Bun CLI workspace for the Claude Code source snapshot.",
+  "description": "Bun CLI workspace for my-code.",
   "type": "module",
   "packageManager": "bun@1.3.11",
   "bin": {
-    "claude": "./cli",
-    "claude-source": "./cli"
+    "my-code": "./my-code"
   },
   "engines": {
     "bun": ">=1.3.11"

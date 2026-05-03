@@ -8,23 +8,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Install dependencies
 bun install
 
-# Standard build (./cli)
+# Standard build (./my-code)
 bun run build
 
-# Dev build (./cli-dev)
+# Dev build (./my-code-dev)
 bun run build:dev
 
-# Dev build with all experimental features (./cli-dev)
+# Dev build with all experimental features (./my-code-dev)
 bun run build:dev:full
 
-# Compiled build (./dist/cli)
+# Compiled build (./dist/my-code)
 bun run compile
 
 # Run from source without compiling
 bun run dev
 ```
 
-Run the built binary with `./cli` or `./cli-dev`. Set `ANTHROPIC_API_KEY` in the environment or use OAuth via `./cli /login`.
+Run the built binary with `./my-code` or `./my-code-dev`. Configure providers in `~/.my-code/models.config.json` or override paths with `MY_CODE_CONFIG_DIR`, `MY_CODE_MODEL_CONFIG`, and `MY_CODE_PROVIDER`.
 
 ## High-level architecture
 

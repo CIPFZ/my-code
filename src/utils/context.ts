@@ -4,6 +4,7 @@ import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getCanonicalName } from './model/model.js'
 import { getModelCapability } from './model/modelCapabilities.js'
+import { getCurrentModelConfig } from './model/providerConfig.js'
 
 // Model context window size (200k tokens for all models right now)
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
@@ -64,6 +65,11 @@ export function getContextWindowForModel(
     if (!isNaN(override) && override > 0) {
       return override
     }
+  }
+
+  const configuredModel = getCurrentModelConfig(undefined, model)
+  if (configuredModel?.contextWindow) {
+    return configuredModel.contextWindow
   }
 
   // [1m] suffix — explicit client-side opt-in, respected over all detection
@@ -152,6 +158,14 @@ export function getModelMaxOutputTokens(model: string): {
 } {
   let defaultTokens: number
   let upperLimit: number
+
+  const configuredModel = getCurrentModelConfig(undefined, model)
+  if (configuredModel?.maxOutputTokens) {
+    return {
+      default: Math.min(configuredModel.maxOutputTokens, MAX_OUTPUT_TOKENS_DEFAULT),
+      upperLimit: configuredModel.maxOutputTokens,
+    }
+  }
 
   if (process.env.USER_TYPE === 'ant') {
     const antModel = resolveAntModel(model.toLowerCase())

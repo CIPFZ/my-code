@@ -1,20 +1,19 @@
 <p align="center">
-  <img src="assets/screenshot.png" alt="free-code" width="720" />
+  <img src="assets/screenshot.png" alt="my-code" width="720" />
 </p>
 
-<h1 align="center">free-code</h1>
+<h1 align="center">my-code</h1>
 
 <p align="center">
-  <strong>The free build of Claude Code.</strong><br>
-  All telemetry stripped. All guardrails removed. All experimental features unlocked.<br>
-  One binary, zero callbacks home.
+  <strong>A configurable AI coding CLI.</strong><br>
+  Configure Anthropic-compatible or OpenAI-compatible providers from <code>~/.my-code/models.config.json</code>.
 </p>
 
 <p align="center">
   <a href="#quick-install"><img src="https://img.shields.io/badge/install-one--liner-blue?style=flat-square" alt="Install" /></a>
-  <a href="https://github.com/paoloanzn/free-code/stargazers"><img src="https://img.shields.io/github/stars/paoloanzn/free-code?style=flat-square" alt="Stars" /></a>
-  <a href="https://github.com/paoloanzn/free-code/issues"><img src="https://img.shields.io/github/issues/paoloanzn/free-code?style=flat-square" alt="Issues" /></a>
-  <a href="https://github.com/paoloanzn/free-code/blob/main/FEATURES.md"><img src="https://img.shields.io/badge/features-88%20flags-orange?style=flat-square" alt="Feature Flags" /></a>
+  <a href="https://github.com/paoloanzn/my-code/stargazers"><img src="https://img.shields.io/github/stars/paoloanzn/my-code?style=flat-square" alt="Stars" /></a>
+  <a href="https://github.com/paoloanzn/my-code/issues"><img src="https://img.shields.io/github/issues/paoloanzn/my-code?style=flat-square" alt="Issues" /></a>
+  <a href="https://github.com/paoloanzn/my-code/blob/main/FEATURES.md"><img src="https://img.shields.io/badge/features-88%20flags-orange?style=flat-square" alt="Feature Flags" /></a>
   <a href="#ipfs-mirror"><img src="https://img.shields.io/badge/IPFS-mirrored-teal?style=flat-square" alt="IPFS" /></a>
 </p>
 
@@ -23,12 +22,12 @@
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/paoloanzn/free-code/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/paoloanzn/my-code/main/install.sh | bash
 ```
 
-Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `free-code` on your PATH.
+Checks your system, installs Bun if needed, clones the repo, builds with all experimental features enabled, and symlinks `my-code` on your PATH.
 
-Then run `free-code` and use the `/login` command to authenticate with your preferred model provider.
+Then run `my-code`. On first start it creates `~/.my-code/models.config.json`; edit that file to configure your provider.
 
 ---
 
@@ -77,7 +76,7 @@ Claude Code ships with 88 feature flags gated behind `bun:bundle` compile-time s
 
 ## Model Providers
 
-free-code supports **five API providers** out of the box. Set the corresponding environment variable to switch providers -- no code changes needed.
+my-code supports Anthropic-compatible and OpenAI-compatible providers configured in `~/.my-code/models.config.json`. Use `MY_CODE_CONFIG_DIR` to choose a different config directory, `MY_CODE_MODEL_CONFIG` to point at a specific config file, and `MY_CODE_PROVIDER` to override `currentProvider` for a run.
 
 ### Anthropic (Direct API) -- Default
 
@@ -101,7 +100,7 @@ Use OpenAI's Codex models for code generation. Requires a Codex subscription.
 
 ```bash
 export CLAUDE_CODE_USE_OPENAI=1
-free-code
+my-code
 ```
 
 ### AWS Bedrock
@@ -111,7 +110,7 @@ Route requests through your AWS account via Amazon Bedrock.
 ```bash
 export CLAUDE_CODE_USE_BEDROCK=1
 export AWS_REGION="us-east-1"   # or AWS_DEFAULT_REGION
-free-code
+my-code
 ```
 
 Uses your standard AWS credentials (environment variables, `~/.aws/config`, or IAM role). Models are mapped to Bedrock ARN format automatically (e.g., `us.anthropic.claude-opus-4-6-v1`).
@@ -130,7 +129,7 @@ Route requests through your GCP project via Vertex AI.
 
 ```bash
 export CLAUDE_CODE_USE_VERTEX=1
-free-code
+my-code
 ```
 
 Uses Google Cloud Application Default Credentials (`gcloud auth application-default login`). Models are mapped to Vertex format automatically (e.g., `claude-opus-4-6@latest`).
@@ -142,7 +141,7 @@ Use Anthropic Foundry for dedicated deployments.
 ```bash
 export CLAUDE_CODE_USE_FOUNDRY=1
 export ANTHROPIC_FOUNDRY_API_KEY="..."
-free-code
+my-code
 ```
 
 Supports custom deployment IDs as model names.
@@ -151,8 +150,8 @@ Supports custom deployment IDs as model names.
 
 | Provider | Env Variable | Auth Method |
 |---|---|---|
-| Anthropic (default) | -- | `ANTHROPIC_API_KEY` or OAuth |
-| OpenAI Codex | `CLAUDE_CODE_USE_OPENAI=1` | OAuth via OpenAI |
+| Anthropic-compatible | configured provider | API key in `~/.my-code/models.config.json` |
+| OpenAI-compatible | configured provider | API key in `~/.my-code/models.config.json` |
 | AWS Bedrock | `CLAUDE_CODE_USE_BEDROCK=1` | AWS credentials |
 | Google Vertex AI | `CLAUDE_CODE_USE_VERTEX=1` | `gcloud` ADC |
 | Anthropic Foundry | `CLAUDE_CODE_USE_FOUNDRY=1` | `ANTHROPIC_FOUNDRY_API_KEY` |
@@ -163,7 +162,7 @@ Supports custom deployment IDs as model names.
 
 - **Runtime**: [Bun](https://bun.sh) >= 1.3.11
 - **OS**: macOS or Linux (Windows via WSL)
-- **Auth**: An API key or OAuth login for your chosen provider
+- **Auth**: API key configured locally in `~/.my-code/models.config.json`
 
 ```bash
 # Install Bun if you don't have it
@@ -175,20 +174,20 @@ curl -fsSL https://bun.sh/install | bash
 ## Build
 
 ```bash
-git clone https://github.com/paoloanzn/free-code.git
-cd free-code
+git clone https://github.com/paoloanzn/my-code.git
+cd my-code
 bun build
-./cli
+my-code
 ```
 
 ### Build Variants
 
 | Command | Output | Features | Description |
 |---|---|---|---|
-| `bun run build` | `./cli` | `VOICE_MODE` only | Production-like binary |
-| `bun run build:dev` | `./cli-dev` | `VOICE_MODE` only | Dev version stamp |
-| `bun run build:dev:full` | `./cli-dev` | All 54 experimental flags | Full unlock build |
-| `bun run compile` | `./dist/cli` | `VOICE_MODE` only | Alternative output path |
+| `bun run build` | `my-code` | `VOICE_MODE` only | Production-like binary |
+| `bun run build:dev` | `my-code-dev` | `VOICE_MODE` only | Dev version stamp |
+| `bun run build:dev:full` | `my-code-dev` | All 54 experimental flags | Full unlock build |
+| `bun run compile` | `./dist/my-code` | `VOICE_MODE` only | Alternative output path |
 
 ### Custom Feature Flags
 
@@ -208,25 +207,34 @@ bun run ./scripts/build.ts --dev --feature=BRIDGE_MODE
 
 ```bash
 # Interactive REPL (default)
-./cli
+my-code
 
 # One-shot mode
-./cli -p "what files are in this directory?"
+my-code -p "what files are in this directory?"
 
 # Specify a model
-./cli --model claude-opus-4-6
+my-code --model claude-opus-4-6
 
 # Run from source (slower startup)
 bun run dev
 
-# OAuth login
-./cli /login
+# Provider config
+$EDITOR ~/.my-code/models.config.json
+
+# Override config directory
+MY_CODE_CONFIG_DIR=/path/to/config my-code
+
+# Override config file or provider
+MY_CODE_MODEL_CONFIG=/path/to/models.config.json MY_CODE_PROVIDER=example my-code
 ```
 
 ### Environment Variables Reference
 
 | Variable | Purpose |
 |---|---|
+| `MY_CODE_CONFIG_DIR` | Config root directory (default: `~/.my-code`) |
+| `MY_CODE_MODEL_CONFIG` | Explicit path to `models.config.json` |
+| `MY_CODE_PROVIDER` | Override `currentProvider` from model config |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `ANTHROPIC_AUTH_TOKEN` | Auth token (alternative) |
 | `ANTHROPIC_MODEL` | Override default model |
@@ -234,7 +242,6 @@ bun run dev
 | `ANTHROPIC_DEFAULT_OPUS_MODEL` | Custom Opus model ID |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | Custom Sonnet model ID |
 | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Custom Haiku model ID |
-| `CLAUDE_CODE_OAUTH_TOKEN` | OAuth token via env |
 | `CLAUDE_CODE_API_KEY_HELPER_TTL_MS` | API key helper cache TTL |
 
 ---
@@ -300,7 +307,6 @@ src/
   hooks/                  # React hooks
   services/               # API clients, MCP, OAuth, analytics
     api/                  # API client + Codex fetch adapter
-    oauth/                # OAuth flows (Anthropic + OpenAI)
   state/                  # App state store
   utils/                  # Utilities
     model/                # Model configs, providers, validation

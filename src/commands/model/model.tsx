@@ -14,7 +14,7 @@ import { MODEL_ALIASES } from '../../utils/model/aliases.js';
 import { checkOpus1mAccess, checkSonnet1mAccess } from '../../utils/model/check1mAccess.js';
 import { getDefaultMainLoopModelSetting, isOpus1mMergeEnabled, renderDefaultModelSetting } from '../../utils/model/model.js';
 import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
-import { validateModel } from '../../utils/model/validateModel.js';
+import { isConfiguredModel, updateCurrentModelConfig } from '../../utils/model/providerConfig.js';
 function ModelPickerWrapper(t0) {
   const $ = _c(17);
   const {
@@ -50,6 +50,7 @@ function ModelPickerWrapper(t0) {
         from_model: mainLoopModel as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
         to_model: model as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
       });
+      applySelectedModelToConfig(model);
       setAppState(prev => ({
         ...prev,
         mainLoopModel: model,
@@ -148,6 +149,11 @@ function SetModelAndClose({
         return;
       }
 
+      if (model && isConfiguredModel(model)) {
+        setModel(model);
+        return;
+      }
+
       // @[MODEL LAUNCH]: Update check for 1M access.
       if (model && isOpus1mUnavailable(model)) {
         onDone(`Opus 4.6 with 1M context is not available for your account. Learn more: https://code.claude.com/docs/en/model-config#extended-context-with-1m`, {
@@ -178,10 +184,7 @@ function SetModelAndClose({
       try {
         // Don't use parseUserSpecifiedModel for non-aliases since it lowercases the input
         // and model names are case-sensitive
-        const {
-          valid,
-          error: error_0
-        } = await validateModel(model);
+        const { valid, error: error_0 } = await import('../../utils/model/validateModel.js').then(m => m.validateModel(model));
         if (valid) {
           setModel(model);
         } else {
@@ -196,6 +199,7 @@ function SetModelAndClose({
       }
     }
     function setModel(modelValue: string | null): void {
+      applySelectedModelToConfig(modelValue);
       setAppState(prev => ({
         ...prev,
         mainLoopModel: modelValue,
@@ -229,6 +233,13 @@ function SetModelAndClose({
     void handleModelChange();
   }, [model, onDone, setAppState]);
   return null;
+}
+export function canSelectConfiguredModel(model: string | null): boolean {
+  return model === null || isKnownAlias(model) || isConfiguredModel(model)
+}
+
+export function applySelectedModelToConfig(model: string | null): void {
+  updateCurrentModelConfig(model)
 }
 function isKnownAlias(model: string): boolean {
   return (MODEL_ALIASES as readonly string[]).includes(model.toLowerCase().trim());

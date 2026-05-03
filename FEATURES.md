@@ -16,13 +16,13 @@ externalized `@ant/*` packages.
 ## Build Variants
 
 - `bun run build`
-  Builds the regular external binary at `./cli`.
+  Builds the regular external binary at `./my-code`.
 - `bun run compile`
-  Builds the regular external binary at `./dist/cli`.
+  Builds the regular external binary at `./dist/my-code`.
 - `bun run build:dev`
-  Builds `./cli-dev` with a dev-stamped version and experimental GrowthBook key.
+  Builds `./my-code-dev` with a dev-stamped version and experimental GrowthBook key.
 - `bun run build:dev:full`
-  Builds `./cli-dev` with the entire current "Working Experimental Features"
+  Builds `./my-code-dev` with the entire current "Working Experimental Features"
   bundle from this document, minus `CHICAGO_MCP`. That flag still compiles,
   but the external binary does not boot cleanly with it because startup
   reaches the missing `@ant/computer-use-mcp` runtime package.
