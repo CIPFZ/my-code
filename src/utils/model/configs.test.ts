@@ -4,6 +4,7 @@ import { join } from 'path'
 import { tmpdir } from 'os'
 import {
   clearModelConfigCache,
+  getDiscoveredProviderModelsCachePath,
   resolveAgentModel,
   resolveCurrentProvider,
   resolveModelMetadata,
@@ -81,5 +82,77 @@ describe('model resolver config', () => {
     expect(() =>
       resolveTeamModel({ teamName: 'qa', role: 'lead', toolSpecifiedModel: 'opus' }),
     ).toThrow(/not configured/)
+  })
+
+  it('uses cached discovered models when modelDiscovery is enabled', () => {
+    const dir = withConfig({
+      currentProvider: 'custom-openai',
+      providers: {
+        'custom-openai': {
+          protocol: 'openai',
+          apiUrl: 'https://example.com/v1',
+          apiKey: 'key',
+          defaultModel: 'gpt-dynamic',
+          modelDiscovery: { enabled: true },
+        },
+      },
+    })
+
+    writeFileSync(
+      getDiscoveredProviderModelsCachePath(),
+      JSON.stringify({
+        providers: {
+          'custom-openai': {
+            models: [
+              { id: 'gpt-dynamic', name: 'GPT Dynamic' },
+              { id: 'gpt-fast', name: 'GPT Fast' },
+            ],
+          },
+        },
+      }),
+    )
+
+    clearModelConfigCache()
+
+    expect(dir).toBe(process.env.MY_CODE_CONFIG_DIR)
+    expect(resolveProviderModels().map(model => model.id)).toEqual([
+      'gpt-dynamic',
+      'gpt-fast',
+    ])
+  })
+
+  it('uses provider model defaults for discovered models without metadata', () => {
+    withConfig({
+      currentProvider: 'custom-openai',
+      providers: {
+        'custom-openai': {
+          protocol: 'openai',
+          apiUrl: 'https://example.com/v1',
+          apiKey: 'key',
+          defaultModel: 'gpt-dynamic',
+          modelDiscovery: { enabled: true },
+          modelDefaults: {
+            contextWindow: 128000,
+            maxOutputTokens: 8192,
+          },
+        },
+      },
+    })
+
+    writeFileSync(
+      getDiscoveredProviderModelsCachePath(),
+      JSON.stringify({
+        providers: {
+          'custom-openai': {
+            models: [{ id: 'gpt-dynamic', name: 'GPT Dynamic' }],
+          },
+        },
+      }),
+    )
+
+    clearModelConfigCache()
+
+    expect(resolveModelMetadata('gpt-dynamic').contextWindow).toBe(128000)
+    expect(resolveModelMetadata('gpt-dynamic').maxOutputTokens).toBe(8192)
   })
 })

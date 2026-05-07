@@ -14,6 +14,13 @@ export type FetchModelsResult = {
   error?: string
 }
 
+export function getOpenAIModelsEndpoint(baseUrl: string): string {
+  const normalizedUrl = baseUrl.replace(/\/$/, '')
+  return normalizedUrl.endsWith('/v1')
+    ? `${normalizedUrl}/models`
+    : `${normalizedUrl}/v1/models`
+}
+
 /**
  * Fetch available models from an OpenAI-compatible API endpoint.
  * Handles both OpenAI format ({ data: [{ id }] }) and Anthropic format.
@@ -26,11 +33,8 @@ export async function fetchModelsFromEndpoint(
     return { success: false, error: 'API URL and Key are required' }
   }
 
-  // Normalize base URL - remove trailing slash
-  const normalizedUrl = baseUrl.replace(/\/$/, '')
-
-  // Try OpenAI format first (/v1/models)
-  const openaiUrl = `${normalizedUrl}/v1/models`
+  // Try OpenAI format first. Configs may already point at the /v1 base.
+  const openaiUrl = getOpenAIModelsEndpoint(baseUrl)
 
   try {
     const instance = createAxiosInstance()
@@ -62,6 +66,7 @@ export async function fetchModelsFromEndpoint(
   } catch (error) {
     // Try Anthropic format as fallback (/models endpoint)
     try {
+      const normalizedUrl = baseUrl.replace(/\/$/, '')
       const anthropicUrl = `${normalizedUrl}/models`
       const instance = createAxiosInstance()
       const response = await instance.get(anthropicUrl, {

@@ -17,6 +17,8 @@
       "apiUrl": "https://api.anthropic.com",
       "apiKeyEnv": "ANTHROPIC_API_KEY",
       "defaultModel": "claude-opus-4-6",
+      "compactModel": "claude-opus-4-6",
+      "fallbackModel": "claude-opus-4-6",
       "models": [
         { "id": "claude-opus-4-6", "contextWindow": 200000, "maxOutputTokens": 64000 }
       ]
@@ -26,6 +28,11 @@
       "apiUrl": "https://api.openai.com/v1",
       "apiKeyEnv": "OPENAI_API_KEY",
       "defaultModel": "gpt-4o",
+      "compactModel": "gpt-4o-mini",
+      "fallbackModel": "gpt-4o-mini",
+      "modelDiscovery": {
+        "enabled": true
+      },
       "models": [
         { "id": "gpt-4o", "contextWindow": 128000, "maxOutputTokens": 16384 },
         { "id": "gpt-4o-mini", "contextWindow": 128000, "maxOutputTokens": 16384 }

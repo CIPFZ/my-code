@@ -144,7 +144,7 @@ export async function showSetupScreens(root: Root, permissionMode: PermissionMod
     setSessionTrustAccepted(true);
 
     // Reset and reinitialize GrowthBook after trust is established.
-    // Defense for login/logout: clears any prior client so the next init
+    // Defense for credential changes: clears any prior client so the next init
     // picks up fresh auth headers.
     resetGrowthBook();
     void initializeGrowthBook();

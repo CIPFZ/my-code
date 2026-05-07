@@ -935,7 +935,7 @@ export async function checkGate_CACHED_OR_BLOCKING(
 }
 
 /**
- * Refresh GrowthBook after auth changes (login/logout).
+ * Refresh GrowthBook after auth changes (credential changes).
  *
  * NOTE: This must destroy and recreate the client because GrowthBook's
  * apiHostRequestHeaders cannot be updated after client creation.

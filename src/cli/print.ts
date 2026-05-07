@@ -3908,7 +3908,7 @@ function runHeadlessStreaming(
               // initReplBridge surfaces gate-failure reasons via
               // onStateChange('failed', detail) before returning null.
               // Capture so the control-response error is actionable
-              // ("/login", "disabled by your organization's policy", etc.)
+              // ("provider configuration", "disabled by your organization's policy", etc.)
               // instead of a generic "initialization failed".
               let bridgeFailureDetail: string | undefined
               try {
@@ -4099,11 +4099,16 @@ function runHeadlessStreaming(
         trackReceivedMessageUuid(message.uuid)
       }
 
+      const resolvedPrompt = await resolveAndPrepend(
+        message,
+        message.message.content,
+      )
+
       enqueue({
         mode: 'prompt' as const,
         // file_attachments rides the protobuf catchall from the web composer.
         // Same-ref no-op when absent (no 'file_attachments' key).
-        value: await resolveAndPrepend(message, message.message.content),
+        value: resolvedPrompt,
         uuid: message.uuid,
         priority: message.priority,
       })
@@ -5216,7 +5221,7 @@ function getStructuredIO(
             content: inputPrompt,
           },
           parent_tool_use_id: null,
-        } satisfies SDKUserMessage),
+        } satisfies SDKUserMessage) + '\n',
       ])
     } else {
       // Empty string - create empty stream

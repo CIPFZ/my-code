@@ -1,13 +1,13 @@
-import { existsSync, mkdirSync, readFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { fetchModelsFromEndpoint } from './fetchModels.js'
 
 export const MY_CODE_ENV_PREFIX = 'MY_CODE_'
 export const MY_CODE_CONFIG_DIR_ENV = 'MY_CODE_CONFIG_DIR'
 export const MY_CODE_PROVIDER_ENV = 'MY_CODE_PROVIDER'
 export const MY_CODE_CONFIG_DIR_NAME = '.my-code'
 export const MODELS_CONFIG_FILE = 'models.config.json'
+export const DISCOVERED_PROVIDER_MODELS_CACHE_FILE = 'provider-models.json'
 export const MODEL_LIST_CACHE_NAMESPACE = 'my-code-provider-models'
 
 export type ProviderProtocol = 'anthropic' | 'openai'
@@ -40,6 +40,9 @@ export type ProviderConfig = {
   apiKey?: string
   apiKeyEnv?: string
   defaultModel?: string
+  compactModel?: string
+  fallbackModel?: string
+  modelDefaults?: Partial<ModelMetadata>
   models?: ModelConfigEntry[] | Record<string, ModelMetadata> | string[]
   modelDiscovery?: ModelDiscoveryConfig
   proxy?: ProxyConfig
@@ -50,6 +53,27 @@ export type ModelConfigFile = {
   default?: string
   proxy?: ProxyConfig
   providers?: Record<string, ProviderConfig>
+}
+
+export type DiscoveredProviderModelEntry = {
+  id: string
+  name?: string
+  description?: string
+  contextWindow?: number
+  maxOutputTokens?: number
+  displayName?: string
+}
+
+export type DiscoveredProviderModelsCache = {
+  providers?: Record<
+    string,
+    {
+      models?: DiscoveredProviderModelEntry[]
+      updatedAt?: string
+      baseUrl?: string
+      protocol?: string
+    }
+  >
 }
 
 export type ResolverContext = {
@@ -121,6 +145,46 @@ export function getModelsConfigPath(context: ResolverContext = {}): string {
   return join(getMyCodeConfigDir(context), MODELS_CONFIG_FILE)
 }
 
+export function getDiscoveredProviderModelsCachePath(
+  context: ResolverContext = {},
+): string {
+  return join(getMyCodeConfigDir(context), DISCOVERED_PROVIDER_MODELS_CACHE_FILE)
+}
+
+export function loadDiscoveredProviderModelsCache(
+  context: ResolverContext = {},
+): DiscoveredProviderModelsCache {
+  const cachePath = getDiscoveredProviderModelsCachePath(context)
+  if (!existsSync(cachePath)) return {}
+
+  try {
+    return JSON.parse(readFileSync(cachePath, 'utf8')) as DiscoveredProviderModelsCache
+  } catch {
+    return {}
+  }
+}
+
+export function saveDiscoveredProviderModels(
+  providerResolution: ProviderResolution,
+  models: DiscoveredProviderModelEntry[],
+  context: ResolverContext = {},
+): void {
+  const configDir = getMyCodeConfigDir(context)
+  mkdirSync(configDir, { recursive: true })
+  const cache = loadDiscoveredProviderModelsCache(context)
+  const providers = cache.providers ?? {}
+  providers[providerResolution.providerId] = {
+    models,
+    updatedAt: new Date().toISOString(),
+    baseUrl: providerResolution.provider.baseUrl ?? providerResolution.provider.apiUrl,
+    protocol: providerResolution.provider.protocol,
+  }
+  writeFileSync(
+    getDiscoveredProviderModelsCachePath(context),
+    JSON.stringify({ ...cache, providers }, null, 2),
+  )
+}
+
 export function loadModelConfig(context: ResolverContext = {}): ModelConfigFile {
   if (context.config) return context.config
 
@@ -139,7 +203,8 @@ export function loadModelConfig(context: ResolverContext = {}): ModelConfigFile 
 
   try {
     cachedConfigPath = configPath
-    cachedConfig = JSON.parse(readFileSync(configPath, 'utf8')) as ModelConfigFile
+    const rawConfig = readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '')
+    cachedConfig = JSON.parse(rawConfig) as ModelConfigFile
     return cachedConfig
   } catch (error) {
     throw new Error(
@@ -268,6 +333,7 @@ export async function resolveProviderModels(
   }
 
   if (providerResolution.provider.modelDiscovery?.enabled) {
+    const { fetchModelsFromEndpoint } = await import('./fetchModels.js')
     const baseUrl = providerResolution.provider.baseUrl ?? providerResolution.provider.apiUrl
     if (!baseUrl) {
       throw new Error(
@@ -277,6 +343,16 @@ export async function resolveProviderModels(
     const auth = resolveProviderAuth(providerResolution, context)
     const result = await fetchModelsFromEndpoint(baseUrl, auth.apiKey)
     if (result.success && result.models?.length) {
+      saveDiscoveredProviderModels(
+        providerResolution,
+        result.models.map(model => ({
+          id: model.id,
+          name: model.name,
+          description: model.description,
+          contextWindow: 0,
+        })),
+        context,
+      )
       return {
         providerId: providerResolution.providerId,
         models: result.models.map(model => ({ id: model.id, contextWindow: 0 })),

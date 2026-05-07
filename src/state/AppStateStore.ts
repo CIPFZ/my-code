@@ -397,7 +397,7 @@ export type AppState = DeepImmutable<{
       updates: { section: string; change: string; reason: string }[]
     } | null
   }
-  // Auth version - incremented on login/logout to trigger re-fetching of auth-dependent data
+  // Auth version - incremented on credential changes to trigger re-fetching of auth-dependent data
   authVersion: number
   // Initial message to process (from CLI args or plan mode exit)
   // When set, REPL will process the message and trigger a query

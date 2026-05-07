@@ -1,7 +1,7 @@
 import { c as _c } from "react/compiler-runtime";
 import capitalize from 'lodash-es/capitalize.js';
 import * as React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useExitOnCtrlCDWithKeybindings } from 'src/hooks/useExitOnCtrlCDWithKeybindings.js';
 import { type AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS, logEvent } from 'src/services/analytics/index.js';
 import { FAST_MODE_MODEL_DISPLAY, isFastModeAvailable, isFastModeCooldown, isFastModeEnabled } from 'src/utils/fastMode.js';
@@ -10,7 +10,7 @@ import { useKeybindings } from '../keybindings/useKeybinding.js';
 import { useAppState, useSetAppState } from '../state/AppState.js';
 import { convertEffortValueToLevel, type EffortLevel, getDefaultEffortForModel, modelSupportsEffort, modelSupportsMaxEffort, resolvePickerEffortPersistence, toPersistableEffort } from '../utils/effort.js';
 import { getDefaultMainLoopModel, type ModelSetting, modelDisplayString, parseUserSpecifiedModel } from '../utils/model/model.js';
-import { getProviderScopedModelOptions } from '../utils/model/modelOptions.js';
+import { getProviderScopedModelOptions, refreshProviderScopedModelOptions } from '../utils/model/modelOptions.js';
 import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
@@ -65,11 +65,24 @@ export function ModelPicker(t0) {
   }
   const [effort, setEffort] = useState(t1);
   const t2 = isFastMode ?? false;
+  const [modelOptionsVersion, setModelOptionsVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    refreshProviderScopedModelOptions().then(() => {
+      if (!cancelled) {
+        setModelOptionsVersion(version => version + 1);
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   let t3;
-  if ($[2] !== t2) {
+  if ($[2] !== t2 || $[4] !== modelOptionsVersion) {
     t3 = getProviderScopedModelOptions();
     $[2] = t2;
     $[3] = t3;
+    $[4] = modelOptionsVersion;
   } else {
     t3 = $[3];
   }

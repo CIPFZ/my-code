@@ -1,7 +1,6 @@
 import { c as _c } from "react/compiler-runtime";
 import chalk from 'chalk';
 import * as React from 'react';
-import { useState } from 'react';
 import type { CommandResultDisplay } from '../../commands.js';
 import { ModelPicker } from '../../components/ModelPicker.js';
 import { COMMON_HELP_ARGS, COMMON_INFO_ARGS } from '../../constants/xml.js';
@@ -16,140 +15,12 @@ import { checkOpus1mAccess, checkSonnet1mAccess } from '../../utils/model/check1
 import { getDefaultMainLoopModelSetting, isOpus1mMergeEnabled, renderDefaultModelSetting } from '../../utils/model/model.js';
 import { isModelAllowed } from '../../utils/model/modelAllowlist.js';
 import { validateModel } from '../../utils/model/validateModel.js';
-import { saveCustomApiConfigAndFetchModels, type FetchedModel } from '../../utils/model/fetchModels.js';
-import { Box, Text } from '../../ink.js';
 
-type CustomAPIState = {
-  enabled: boolean
-  apiUrl: string
-  apiKey: string
-  providerType: 'openai' | 'anthropic'
-  models: FetchedModel[]
-}
-
-function CustomAPIConfig({
-  onClose,
-  onConfigComplete,
-}: {
-  onClose: () => void
-  onConfigComplete: (config: { apiUrl: string; apiKey: string; providerType: 'openai' | 'anthropic' }) => void
-}) {
-  const $ = _c(10);
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [providerType, setProviderType] = useState<'openai' | 'anthropic'>('openai');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  let t1;
-  if ($[0] !== apiUrl) {
-    t1 = (e: React.ChangeEvent<HTMLInputElement>) => setApiUrl(e.target.value);
-    $[0] = apiUrl;
-    $[1] = t1;
-  } else {
-    t1 = $[1];
-  }
-  const handleApiUrlChange = t1;
-
-  let t2;
-  if ($[2] !== apiKey) {
-    t2 = (e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value);
-    $[2] = apiKey;
-    $[3] = t2;
-  } else {
-    t2 = $[3];
-  }
-  const handleApiKeyChange = t2;
-
-  let t3;
-  if ($[4] !== isLoading || $[5] !== error) {
-    t3 = async () => {
-      if (!apiUrl.trim() || !apiKey.trim()) {
-        setError('Please enter both API URL and API Key');
-        return;
-      }
-      setIsLoading(true);
-      setError(null);
-
-      const result = await saveCustomApiConfigAndFetchModels(apiUrl, apiKey, providerType);
-
-      if (result.success && result.models && result.models.length > 0) {
-        onConfigComplete({ apiUrl, apiKey, providerType });
-      } else {
-        setError(result.error || 'Failed to fetch models');
-      }
-      setIsLoading(false);
-    };
-    $[4] = isLoading;
-    $[5] = error;
-    $[6] = t3;
-  } else {
-    t3 = $[6];
-  }
-  const handleFetchAndSave = t3;
-
-  return (
-    <Box flexDirection="column" paddingBottom={1}>
-      <Text bold={true} color="cyan">Custom API Configuration</Text>
-      <Text dimColor={true}>Configure a custom API endpoint for model access</Text>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text>API Provider:</Text>
-        <Box flexDirection="row" gap={2}>
-          <Text
-            bold={providerType === 'openai'}
-            color={providerType === 'openai' ? 'green' : undefined}
-            onClick={() => setProviderType('openai')}
-          >
-            [OpenAI Compatible]
-          </Text>
-          <Text
-            bold={providerType === 'anthropic'}
-            color={providerType === 'anthropic' ? 'green' : undefined}
-            onClick={() => setProviderType('anthropic')}
-          >
-            [Anthropic]
-          </Text>
-        </Box>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text>API URL:</Text>
-        <Text dimColor={true}>Enter the base URL (e.g., https://api.openai.com/v1)</Text>
-      </Box>
-
-      <Box marginTop={1} flexDirection="column">
-        <Text>API Key:</Text>
-        <Text dimColor={true}>Enter your API key</Text>
-      </Box>
-
-      {error && (
-        <Box marginTop={1}>
-          <Text color="red">{error}</Text>
-        </Box>
-      )}
-
-      <Box marginTop={2} flexDirection="row" gap={2}>
-        <Text bold={true} color="green" onClick={handleFetchAndSave}>
-          [Confirm & Fetch Models]
-        </Text>
-        <Text dimColor={true} onClick={onClose}>
-          [Cancel]
-        </Text>
-      </Box>
-    </Box>
-  );
-}
-
-function ModelPickerWrapper({
-  onDone,
-}: {
-  onDone: (
-    result?: string,
-    options?: { display?: CommandResultDisplay },
-  ) => void
-}): React.ReactNode {
+function ModelPickerWrapper(t0) {
   const $ = _c(17);
+  const {
+    onDone
+  } = t0;
   const mainLoopModel = useAppState(_temp);
   const mainLoopModelForSession = useAppState(_temp2);
   const isFastMode = useAppState(_temp3);
@@ -197,16 +68,16 @@ function ModelPickerWrapper({
           wasFastModeToggledOn = false;
         } else {
           if (isFastModeSupportedByModel(model) && isFastModeAvailable() && isFastMode) {
-            message = message + " \xB7 Fast mode ON";
+            message = message + " · Fast mode ON";
             wasFastModeToggledOn = true;
           }
         }
       }
       if (isBilledAsExtraUsage(model, wasFastModeToggledOn === true, isOpus1mMergeEnabled())) {
-        message = message + " \xB7 Billed as extra usage";
+        message = message + " · Billed as extra usage";
       }
       if (wasFastModeToggledOn === false) {
-        message = message + " \xB7 Fast mode OFF";
+        message = message + " · Fast mode OFF";
       }
       onDone(message);
     };
@@ -242,6 +113,7 @@ function ModelPickerWrapper({
   }
   return t4;
 }
+
 function _temp4(prev_0) {
   return {
     ...prev_0,
@@ -257,6 +129,7 @@ function _temp2(s_0) {
 function _temp(s) {
   return s.mainLoopModel;
 }
+
 function SetModelAndClose({
   args,
   onDone
@@ -269,7 +142,6 @@ function SetModelAndClose({
   const isFastMode = useAppState(s => s.fastMode);
   const setAppState = useSetAppState();
   const model = args === 'default' ? null : args;
-
   React.useEffect(() => {
     async function handleModelChange(): Promise<void> {
       if (model && !isModelAllowed(model)) {
@@ -278,8 +150,6 @@ function SetModelAndClose({
         });
         return;
       }
-
-      // @[MODEL LAUNCH]: Update check for 1M access.
       if (model && isOpus1mUnavailable(model)) {
         onDone(`Opus 4.6 with 1M context is not available for your account. Learn more: https://code.claude.com/docs/en/model-config#extended-context-with-1m`, {
           display: 'system'
@@ -292,23 +162,15 @@ function SetModelAndClose({
         });
         return;
       }
-
-      // Skip validation for default model
       if (!model) {
         setModel(null);
         return;
       }
-
-      // Skip validation for known aliases - they're predefined and should work
       if (isKnownAlias(model)) {
         setModel(model);
         return;
       }
-
-      // Validate and set custom model
       try {
-        // Don't use parseUserSpecifiedModel for non-aliases since it lowercases the input
-        // and model names are case-sensitive
         const {
           valid,
           error: error_0
@@ -342,7 +204,6 @@ function SetModelAndClose({
             fastMode: false
           }));
           wasFastModeToggledOn = false;
-          // Do not update fast mode in settings since this is an automatic downgrade
         } else if (isFastModeSupportedByModel(modelValue) && isFastMode) {
           message += ` · Fast mode ON`;
           wasFastModeToggledOn = true;
@@ -352,7 +213,6 @@ function SetModelAndClose({
         message += ` · Billed as extra usage`;
       }
       if (wasFastModeToggledOn === false) {
-        // Fast mode was toggled off, show suffix after extra usage billing
         message += ` · Fast mode OFF`;
       }
       onDone(message);
@@ -361,19 +221,21 @@ function SetModelAndClose({
   }, [model, onDone, setAppState]);
   return null;
 }
+
 function isKnownAlias(model: string): boolean {
   return (MODEL_ALIASES as readonly string[]).includes(model.toLowerCase().trim());
 }
+
 function isOpus1mUnavailable(model: string): boolean {
   const m = model.toLowerCase();
   return !checkOpus1mAccess() && !isOpus1mMergeEnabled() && m.includes('opus') && m.includes('[1m]');
 }
+
 function isSonnet1mUnavailable(model: string): boolean {
   const m = model.toLowerCase();
-  // Warn about Sonnet and Sonnet 4.6, but not Sonnet 4.5 since that had
-  // a different access criteria.
   return !checkSonnet1mAccess() && (m.includes('sonnet[1m]') || m.includes('sonnet-4-6[1m]'));
 }
+
 function ShowModelAndClose(t0) {
   const {
     onDone
@@ -390,6 +252,7 @@ function ShowModelAndClose(t0) {
   }
   return null;
 }
+
 function _temp9(s_1) {
   return s_1.effortValue;
 }
@@ -399,69 +262,7 @@ function _temp8(s_0) {
 function _temp7(s) {
   return s.mainLoopModel;
 }
-function CustomAPIWrapper({
-  onDone
-}: {
-  onDone: (
-    result?: string,
-    options?: { display?: CommandResultDisplay },
-  ) => void
-}): React.ReactNode {
-  const $ = _c(3);
-  const [config, setConfig] = useState<{
-    apiUrl: string
-    apiKey: string
-    providerType: 'openai' | 'anthropic'
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
 
-  let t1;
-  if ($[0] !== config || $[1] !== onDone || $[2] !== isLoading) {
-    t1 = async () => {
-      if (!config) return;
-      setIsLoading(true);
-      try {
-        const { saveCustomApiConfigAndFetchModels } = await import('../../utils/model/fetchModels.js');
-        const result = await saveCustomApiConfigAndFetchModels(
-          config.apiUrl,
-          config.apiKey,
-          config.providerType
-        );
-        if (result.success && result.models && result.models.length > 0) {
-          onDone(`Custom API configured: ${config.providerType === 'openai' ? 'OpenAI Compatible' : 'Anthropic'} endpoint\nFetched ${result.models.length} models`, {
-            display: 'system'
-          });
-        } else {
-          onDone(result.error || 'Failed to fetch models', {
-            display: 'system'
-          });
-        }
-      } catch (error) {
-        onDone(`Failed to configure custom API: ${(error as Error).message}`, {
-          display: 'system'
-        });
-      }
-      setIsLoading(false);
-    };
-    $[0] = config;
-    $[1] = onDone;
-    $[2] = isLoading;
-    $[3] = t1;
-  } else {
-    t1 = $[3];
-  }
-  const handleConfigComplete = t1;
-
-  return (
-    <CustomAPIConfig
-      onClose={() => onDone('Cancelled custom API configuration', { display: 'system' })}
-      onConfigComplete={(newConfig) => {
-        setConfig(newConfig);
-        setTimeout(() => handleConfigComplete(), 0);
-      }}
-    />
-  );
-}
 export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
   args = args?.trim() || '';
   if (COMMON_INFO_ARGS.includes(args)) {
@@ -471,16 +272,10 @@ export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
     return <ShowModelAndClose onDone={onDone} />;
   }
   if (COMMON_HELP_ARGS.includes(args)) {
-    onDone('Run /model to open the model selection menu, or /model [modelName] to set the model.', {
+    onDone('Run /model to open the model selection menu, or /model [modelName] to set the model from models.config.json.', {
       display: 'system'
     });
     return;
-  }
-  if (args === 'custom') {
-    logEvent('tengu_model_command_custom_api', {
-      args: 'custom' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
-    });
-    return <CustomAPIWrapper onDone={onDone} />;
   }
   if (args) {
     logEvent('tengu_model_command_inline', {
@@ -490,6 +285,7 @@ export const call: LocalJSXCommandCall = async (onDone, _context, args) => {
   }
   return <ModelPickerWrapper onDone={onDone} />;
 };
+
 function renderModelLabel(model: string | null): string {
   const rendered = renderDefaultModelSetting(model ?? getDefaultMainLoopModelSetting());
   return model === null ? `${rendered} (default)` : rendered;

@@ -406,7 +406,7 @@ const getWorkflowCommands = feature('WORKFLOW_SCRIPTS')
  * This runs before `isEnabled()` so that provider-gated commands are hidden
  * regardless of feature-flag state.
  *
- * Not memoized — auth state can change mid-session (e.g. after /login),
+ * Not memoized — auth state can change mid-session (e.g. after provider configuration),
  * so this must be re-evaluated on every getCommands() call.
  *
  * REMOVED LOGIN RESTRICTIONS: All commands are now available in local API key mode.
@@ -444,7 +444,7 @@ const loadAllCommands = memoize(async (cwd: string): Promise<Command[]> => {
 /**
  * Returns commands available to the current user. The expensive loading is
  * memoized, but availability and isEnabled checks run fresh every call so
- * auth changes (e.g. /login) take effect immediately.
+ * auth changes (e.g. provider configuration) take effect immediately.
  */
 export async function getCommands(cwd: string): Promise<Command[]> {
   const allCommands = await loadAllCommands(cwd)

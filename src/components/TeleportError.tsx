@@ -3,8 +3,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { checkIsGitClean, checkNeedsClaudeAiLogin } from 'src/utils/background/remote/preconditions.js';
 import { gracefulShutdownSync } from 'src/utils/gracefulShutdown.js';
 import { Box, Text } from '../ink.js';
-import { ConsoleOAuthFlow } from './ConsoleOAuthFlow.js';
-import { Select } from './CustomSelect/index.js';
 import { Dialog } from './design-system/Dialog.js';
 import { TeleportStash } from './TeleportStash.js';
 export type TeleportLocalErrorType = 'needsLogin' | 'needsGitStash';
@@ -26,7 +24,6 @@ export function TeleportError(t0) {
   } = t0;
   const errorsToIgnore = t1 === undefined ? EMPTY_ERRORS_TO_IGNORE : t1;
   const [currentError, setCurrentError] = useState(null);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
   let t2;
   if ($[0] !== errorsToIgnore || $[1] !== onComplete) {
     t2 = async () => {
@@ -67,42 +64,6 @@ export function TeleportError(t0) {
   }
   useEffect(t3, t4);
   const onCancel = _temp;
-  let t5;
-  if ($[6] !== checkErrors) {
-    t5 = () => {
-      setIsLoggingIn(false);
-      checkErrors();
-    };
-    $[6] = checkErrors;
-    $[7] = t5;
-  } else {
-    t5 = $[7];
-  }
-  const handleLoginComplete = t5;
-  let t6;
-  if ($[8] === Symbol.for("react.memo_cache_sentinel")) {
-    t6 = () => {
-      setIsLoggingIn(true);
-    };
-    $[8] = t6;
-  } else {
-    t6 = $[8];
-  }
-  const handleLoginWithClaudeAI = t6;
-  let t7;
-  if ($[9] === Symbol.for("react.memo_cache_sentinel")) {
-    t7 = value => {
-      if (value === "login") {
-        handleLoginWithClaudeAI();
-      } else {
-        onCancel();
-      }
-    };
-    $[9] = t7;
-  } else {
-    t7 = $[9];
-  }
-  const handleLoginDialogSelect = t7;
   let t8;
   if ($[10] !== checkErrors) {
     t8 = () => {
@@ -132,33 +93,16 @@ export function TeleportError(t0) {
       }
     case "needsLogin":
       {
-        if (isLoggingIn) {
-          let t9;
-          if ($[14] !== handleLoginComplete) {
-            t9 = <ConsoleOAuthFlow onDone={handleLoginComplete} mode="login" forceLoginMethod="claudeai" />;
-            $[14] = handleLoginComplete;
-            $[15] = t9;
-          } else {
-            t9 = $[15];
-          }
-          return t9;
-        }
         let t9;
         if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-          t9 = <Box flexDirection="column"><Text dimColor={true}>Teleport requires a Claude.ai account.</Text><Text dimColor={true}>Your Claude Pro/Max subscription will be used by Claude Code.</Text></Box>;
+          t9 = <Box flexDirection="column"><Text dimColor={true}>Teleport requires Claude.ai OAuth, which is disabled in my-code.</Text><Text dimColor={true}>Use local provider configuration in ~/.my-code/models.config.json instead.</Text></Box>;
           $[16] = t9;
         } else {
           t9 = $[16];
         }
         let t10;
         if ($[17] === Symbol.for("react.memo_cache_sentinel")) {
-          t10 = <Dialog title="Log in to Claude" onCancel={onCancel}>{t9}<Select options={[{
-              label: "Login with Claude account",
-              value: "login"
-            }, {
-              label: "Exit",
-              value: "exit"
-            }]} onChange={handleLoginDialogSelect} /></Dialog>;
+          t10 = <Dialog title="Remote session unavailable" onCancel={onCancel}>{t9}</Dialog>;
           $[17] = t10;
         } else {
           t10 = $[17];

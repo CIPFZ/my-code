@@ -965,7 +965,7 @@ async function run(): Promise<CommanderCommand> {
     }
     profileCheckpoint('preAction_after_settings_sync');
   });
-  program.name('claude').description(`Claude Code - starts an interactive session by default, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
+  program.name('my-code').description(`MyCode - starts an interactive session by default, use -p/--print for non-interactive output`).argument('[prompt]', 'Your prompt', String)
   // Subcommands inherit helpOption via commander's copyInheritedSettings —
   // setting it once here covers mcp, plugin, auth, and all other subcommands.
   .helpOption('-h, --help', 'Display help for command').option('-d, --debug [filter]', 'Enable debug mode with optional category filtering (e.g., "api,hooks" or "!1p,!file")', (_value: string | true) => {
@@ -2272,10 +2272,7 @@ async function run(): Promise<CommanderCommand> {
         agentDef.pendingSnapshotUpdate = undefined;
       }
 
-      // Skip executing /login if we just completed onboarding for it
-      if (onboardingShown && prompt?.trim().toLowerCase() === '/login') {
-        prompt = '';
-      }
+      void onboardingShown;
     }
 
     // If gracefulShutdown was initiated (e.g., user rejected trust dialog),
@@ -3772,7 +3769,7 @@ async function run(): Promise<CommanderCommand> {
         pendingHookMessages
       }, renderAndRun);
     }
-  }).version(`${MACRO.VERSION} (Claude Code)`, '-v, --version', 'Output the version number');
+  }).version(`${MACRO.VERSION} (MyCode)`, '-v, --version', 'Output the version number');
 
   // Worktree flags
   program.option('-w, --worktree [name]', 'Create a new git worktree for this session (optionally specify a name)');
@@ -3859,7 +3856,7 @@ async function run(): Promise<CommanderCommand> {
   // claude mcp
 
   const mcp = program.command('mcp').description('Configure and manage MCP servers').configureHelp(createSortedHelpConfig()).enablePositionalOptions();
-  mcp.command('serve').description(`Start the Claude Code MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
+  mcp.command('serve').description(`Start the MyCode MCP server`).option('-d, --debug', 'Enable debug mode', () => true).option('--verbose', 'Override verbose mode setting from config', () => true).action(async ({
     debug,
     verbose
   }: {
@@ -4010,11 +4007,11 @@ async function run(): Promise<CommanderCommand> {
   // this action it means the argv rewrite didn't fire (e.g. user ran
   // `claude ssh` with no host) — just print usage.
   if (feature('SSH_REMOTE')) {
-    program.command('ssh <host> [dir]').description('Run Claude Code on a remote host over SSH. Deploys the binary and ' + 'tunnels API auth back through your local machine — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
+    program.command('ssh <host> [dir]').description('Run MyCode on a remote host over SSH. Deploys the binary and ' + 'uses local provider configuration — no remote setup needed.').option('--permission-mode <mode>', 'Permission mode for the remote session').option('--dangerously-skip-permissions', 'Skip all permission prompts on the remote (dangerous)').option('--local', 'e2e test mode — spawn the child CLI locally (skip ssh/deploy). ' + 'Exercises the auth proxy and unix-socket plumbing without a remote host.').action(async () => {
       // Argv rewriting in main() should have consumed `ssh <host>` before
       // commander runs. Reaching here means host was missing or the
       // rewrite predicate didn't match.
-      process.stderr.write('Usage: claude ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs Claude Code on a remote Linux host. You don't need to install\n" + 'anything on the remote or run `claude auth login` there — the binary is\n' + 'deployed over SSH and API auth tunnels back through your local machine.\n');
+      process.stderr.write('Usage: my-code ssh <user@host | ssh-config-alias> [dir]\n\n' + "Runs MyCode on a remote Linux host. You don't need to install\n" + 'anything on the remote; the binary is deployed over SSH and API auth\n' + 'uses local MyCode provider configuration.\n');
       process.exit(1);
     });
   }
@@ -4062,16 +4059,6 @@ async function run(): Promise<CommanderCommand> {
     });
   }
 
-  // claude auth
-
-  const auth = program.command('auth').description('Show my-code authentication status').configureHelp(createSortedHelpConfig());
-  auth.command('status').description('Show authentication status').action(async () => {
-    const {
-      authStatus
-    } = await import('./cli/handlers/auth.js');
-    await authStatus({});
-  });
-
   /**
    * Helper function to handle marketplace command errors consistently.
    * Logs the error and exits the process with status 1.
@@ -4082,7 +4069,7 @@ async function run(): Promise<CommanderCommand> {
   const coworkOption = () => new Option('--cowork', 'Use cowork_plugins directory').hideHelp();
 
   // Plugin validate command
-  const pluginCmd = program.command('plugin').alias('plugins').description('Manage Claude Code plugins').configureHelp(createSortedHelpConfig());
+  const pluginCmd = program.command('plugin').alias('plugins').description('Manage MyCode plugins').configureHelp(createSortedHelpConfig());
   pluginCmd.command('validate <path>').description('Validate a plugin or marketplace manifest').addOption(coworkOption()).action(async (manifestPath: string, options: {
     cowork?: boolean;
   }) => {
@@ -4105,7 +4092,7 @@ async function run(): Promise<CommanderCommand> {
   });
 
   // Marketplace subcommands
-  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage Claude Code marketplaces').configureHelp(createSortedHelpConfig());
+  const marketplaceCmd = pluginCmd.command('marketplace').description('Manage MyCode marketplaces').configureHelp(createSortedHelpConfig());
   marketplaceCmd.command('add <source>').description('Add a marketplace from a URL, path, or GitHub repo').addOption(coworkOption()).option('--sparse <paths...>', 'Limit checkout to specific directories via git sparse-checkout (for monorepos). Example: --sparse .claude-plugin plugins').option('--scope <scope>', 'Where to declare the marketplace: user (default), project, or local').action(async (source: string, options: {
     cowork?: boolean;
     sparse?: string[];
@@ -4200,17 +4187,6 @@ async function run(): Promise<CommanderCommand> {
   });
   // END ANT-ONLY
 
-  // Setup token command
-  program.command('setup-token').description('Set up a long-lived authentication token (requires Claude subscription)').action(async () => {
-    const [{
-      setupTokenHandler
-    }, {
-      createRoot
-    }] = await Promise.all([import('./cli/handlers/util.js'), import('./ink.js')]);
-    const root = await createRoot(getBaseRenderOptions(false));
-    await setupTokenHandler(root);
-  });
-
   // Agents command - list configured agents
   program.command('agents').description('List configured agents').option('--setting-sources <sources>', 'Comma-separated list of setting sources to load (user, project, local).').action(async () => {
     const {
@@ -4280,7 +4256,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // Doctor command - check installation health
-  program.command('doctor').description('Check the health of your Claude Code auto-updater. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
+  program.command('doctor').description('Check the health of your MyCode installation. Note: The workspace trust dialog is skipped and stdio servers from .mcp.json are spawned for health checks. Only use this command in directories you trust.').action(async () => {
     const [{
       doctorHandler
     }, {
@@ -4329,7 +4305,7 @@ async function run(): Promise<CommanderCommand> {
   }
 
   // claude install
-  program.command('install [target]').description('Install Claude Code native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
+  program.command('install [target]').description('Install MyCode native build. Use [target] to specify version (stable, latest, or specific version)').option('--force', 'Force installation even if already installed').action(async (target: string | undefined, options: {
     force?: boolean;
   }) => {
     const {

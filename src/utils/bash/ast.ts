@@ -119,7 +119,7 @@ const STDBUF_LONG_RE = /^--(input|output|error)=/
  * are controlled by the shell/OS, not arbitrary user input. Referencing these
  * via $VAR is safe — the expansion is deterministic and doesn't introduce
  * injection risk. Covers `$HOME`, `$PWD`, `$USER`, `$PATH`, `$SHELL`, etc.
- * Intentionally small: only vars that are always set by bash/login and whose
+ * Intentionally small: only vars that are always set by bash or shell startup and whose
  * values are paths/names (not arbitrary content).
  */
 const SAFE_ENV_VARS = new Set([

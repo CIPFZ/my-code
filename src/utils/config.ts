@@ -428,7 +428,7 @@ export type GlobalConfig = {
   remoteDialogSeen?: boolean
 
   // Cross-process backoff for initReplBridge's oauth_expired_unrefreshable skip.
-  // `expiresAt` is the dedup key — content-addressed, self-clears when /login
+  // `expiresAt` is the dedup key — content-addressed, self-clears when provider configuration
   // replaces the token. `failCount` caps false positives: transient refresh
   // failures (auth server 5xx, lock errors) get 3 retries before backoff kicks
   // in, mirroring useReplBridge's MAX_CONSECUTIVE_INIT_FAILURES. Dead-token

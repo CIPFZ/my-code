@@ -91,6 +91,24 @@ function isEagainError(stderr: string): boolean {
   )
 }
 
+function spawnRipgrep(
+  command: string,
+  args: string[],
+  options: Parameters<typeof spawn>[2],
+): ChildProcess | NodeJS.ErrnoException {
+  try {
+    return spawn(command, args, options)
+  } catch (error) {
+    return error as NodeJS.ErrnoException
+  }
+}
+
+function isSpawnError(
+  child: ChildProcess | NodeJS.ErrnoException,
+): child is NodeJS.ErrnoException {
+  return !(typeof (child as ChildProcess).on === 'function')
+}
+
 /**
  * Custom error class for ripgrep timeouts.
  * This allows callers to distinguish between "no matches" and "timed out".
@@ -134,12 +152,17 @@ function ripGrepRaw(
 
   // For embedded ripgrep, use spawn with argv0 (execFile doesn't support argv0 properly)
   if (argv0) {
-    const child = spawn(rgPath, fullArgs, {
+    const child = spawnRipgrep(rgPath, fullArgs, {
       argv0,
       signal: abortSignal,
       // Prevent visible console window on Windows (no-op on other platforms)
       windowsHide: true,
     })
+
+    if (isSpawnError(child)) {
+      callback(child, '', '')
+      return child as unknown as ChildProcess
+    }
 
     let stdout = ''
     let stderr = ''
@@ -252,12 +275,16 @@ async function ripGrepFileCount(
   const { rgPath, rgArgs, argv0 } = ripgrepCommand()
 
   return new Promise<number>((resolve, reject) => {
-    const child = spawn(rgPath, [...rgArgs, ...args, target], {
+    const child = spawnRipgrep(rgPath, [...rgArgs, ...args, target], {
       argv0,
       signal: abortSignal,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
     })
+    if (isSpawnError(child)) {
+      reject(child)
+      return
+    }
 
     let lines = 0
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -302,12 +329,16 @@ export async function ripGrepStream(
   const { rgPath, rgArgs, argv0 } = ripgrepCommand()
 
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(rgPath, [...rgArgs, ...args, target], {
+    const child = spawnRipgrep(rgPath, [...rgArgs, ...args, target], {
       argv0,
       signal: abortSignal,
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore'],
     })
+    if (isSpawnError(child)) {
+      reject(child)
+      return
+    }
 
     const stripCR = (l: string) => (l.endsWith('\r') ? l.slice(0, -1) : l)
     let remainder = ''

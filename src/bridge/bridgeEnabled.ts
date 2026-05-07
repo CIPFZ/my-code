@@ -62,7 +62,7 @@ export async function isBridgeEnabledBlocking(): Promise<boolean> {
  * The GrowthBook gate targets on organizationUUID, which comes from
  * config.oauthAccount — populated by /api/oauth/profile during login.
  * That endpoint requires the user:profile scope. Tokens without it
- * (setup-token, CLAUDE_CODE_OAUTH_TOKEN env var, or pre-scope-expansion
+ * (CLAUDE_CODE_OAUTH_TOKEN env var or pre-scope-expansion
  * logins) leave oauthAccount unpopulated, so the gate falls back to
  * false and users see a dead-end "not enabled" message with no hint
  * that re-login would fix it. See CC-1165 / gh-33105.
@@ -70,13 +70,13 @@ export async function isBridgeEnabledBlocking(): Promise<boolean> {
 export async function getBridgeDisabledReason(): Promise<string | null> {
   if (feature('BRIDGE_MODE')) {
     if (!isClaudeAISubscriber()) {
-      return 'Remote Control requires a claude.ai subscription. Run `claude auth login` to sign in with your claude.ai account.'
+      return 'Remote Control requires claude.ai OAuth, which is disabled in MyCode. Use local provider configuration in ~/.my-code/models.config.json instead.'
     }
     if (!hasProfileScope()) {
-      return 'Remote Control requires a full-scope login token. Long-lived tokens (from `claude setup-token` or CLAUDE_CODE_OAUTH_TOKEN) are limited to inference-only for security reasons. Run `claude auth login` to use Remote Control.'
+      return 'Remote Control requires a full-scope OAuth token. MyCode disables Claude OAuth login and long-lived token setup; use local provider configuration instead.'
     }
     if (!getOauthAccountInfo()?.organizationUuid) {
-      return 'Unable to determine your organization for Remote Control eligibility. Run `claude auth login` to refresh your account information.'
+      return 'Unable to determine your organization for Remote Control eligibility. Claude OAuth login is disabled in MyCode.'
     }
     if (!(await checkGate_CACHED_OR_BLOCKING('tengu_ccr_bridge'))) {
       return 'Remote Control is not yet enabled for your account.'

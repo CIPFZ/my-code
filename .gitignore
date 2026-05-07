@@ -7,6 +7,10 @@ dist/
 /cli-dev
 my-code
 my-code-dev
+my-code-dev.exe
+mycode-*.txt
+mycode-*.log
+latest
 
 # local runtime state
 .omc/

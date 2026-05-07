@@ -140,7 +140,7 @@ Based on the areas detected in Phase 1, you may need to create multiple verifier
 
 3. **Authentication & Login** (for web apps and APIs):
 
-   Use AskUserQuestion to ask: "Does your app require authentication/login to access the pages or endpoints being verified?"
+   Use AskUserQuestion to ask: "Does your app require authentication or sign-in to access the pages or endpoints being verified?"
    - **No authentication needed** - App is publicly accessible, no login required
    - **Yes, login required** - App requires authentication before verification can proceed
    - **Some pages require auth** - Mix of public and authenticated routes
@@ -152,7 +152,7 @@ Based on the areas detected in Phase 1, you may need to create multiple verifier
      - OAuth/SSO (redirect-based flow)
      - Other (let user describe)
    - **Test credentials**: What credentials should the verifier use?
-     - Ask for the login URL (e.g., "/login", "http://localhost:3000/auth")
+     - Ask for the sign-in URL (e.g., "/auth/sign-in", "http://localhost:3000/auth")
      - Ask for test username/email and password, or API key
      - Note: Suggest the user use environment variables for secrets (e.g., \`TEST_USER\`, \`TEST_PASSWORD\`) rather than hardcoding
    - **Post-login indicator**: How to confirm login succeeded?

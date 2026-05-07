@@ -162,7 +162,7 @@ export function getAuthTokenSource() {
 export type ApiKeySource =
   | 'ANTHROPIC_API_KEY'
   | 'apiKeyHelper'
-  | '/login managed key'
+  | 'managed key'
   | 'none'
 
 export function getAnthropicApiKey(): null | string {
@@ -249,7 +249,7 @@ export function getAnthropicApiKeyWithSource(
       source: 'none',
     }
   }
-  // Check for ANTHROPIC_API_KEY before checking the apiKeyHelper or /login-managed key
+  // Check for ANTHROPIC_API_KEY before checking the apiKeyHelper or managed-key key
   if (
     apiKeyEnv &&
     getGlobalConfig().customApiKeyResponses?.approved?.includes(
@@ -1013,7 +1013,7 @@ export const getApiKeyFromConfigOrMacOSKeychain = memoize(
       const prefetch = getLegacyApiKeyPrefetchResult()
       if (prefetch) {
         if (prefetch.stdout) {
-          return { key: prefetch.stdout, source: '/login managed key' }
+          return { key: prefetch.stdout, source: 'managed key' }
         }
         // Prefetch completed with no key — fall through to config, not keychain.
       } else {
@@ -1023,7 +1023,7 @@ export const getApiKeyFromConfigOrMacOSKeychain = memoize(
             `security find-generic-password -a $USER -w -s "${storageServiceName}"`,
           )
           if (result) {
-            return { key: result, source: '/login managed key' }
+            return { key: result, source: 'managed key' }
           }
         } catch (e) {
           logError(e)
@@ -1036,7 +1036,7 @@ export const getApiKeyFromConfigOrMacOSKeychain = memoize(
       return null
     }
 
-    return { key: config.primaryApiKey, source: '/login managed key' }
+    return { key: config.primaryApiKey, source: 'managed key' }
   },
 )
 
@@ -1323,10 +1323,10 @@ export function clearCodexOAuthTokens(): void {
 let lastCredentialsMtimeMs = 0
 
 // Cross-process staleness: another CC instance may write fresh tokens to
-// disk (refresh or /login), but this process's memoize caches forever.
-// Without this, terminal 1's /login fixes terminal 1; terminal 2's /login
+// disk (refresh or provider configuration), but this process's memoize caches forever.
+// Without this, terminal 1's provider configuration fixes terminal 1; terminal 2's provider configuration
 // then revokes terminal 1 server-side, and terminal 1's memoize never
-// re-reads — infinite /login regress (CC-1096, GH#24317).
+// re-reads — infinite provider configuration regress (CC-1096, GH#24317).
 async function invalidateOAuthCacheIfDiskChanged(): Promise<void> {
   try {
     const { mtimeMs } = await stat(
@@ -1593,7 +1593,7 @@ export function isCodexSubscriber(): boolean {
 /**
  * Check if the current OAuth token has the user:profile scope.
  *
- * Real /login tokens always include this scope. Env-var and file-descriptor
+ * Real OAuth tokens always include this scope. Env-var and file-descriptor
  * tokens (service keys) hardcode scopes to ['user:inference'] only. Use this
  * to gate calls to profile-scoped endpoints so service key sessions don't
  * generate 403 storms against /api/oauth/profile, bootstrap, etc.

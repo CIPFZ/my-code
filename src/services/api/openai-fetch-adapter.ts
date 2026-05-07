@@ -37,7 +37,12 @@ export const DEFAULT_OPENAI_MODEL = 'gpt-4o'
  * @returns The corresponding OpenAI model ID
  */
 export function mapClaudeModelToOpenAI(claudeModel: string | null): string {
-  const configuredDefaultModel = getConfigDefaultModel()
+  let configuredDefaultModel: string | undefined
+  try {
+    configuredDefaultModel = getConfigDefaultModel()
+  } catch {
+    configuredDefaultModel = undefined
+  }
   if (!claudeModel) return configuredDefaultModel ?? DEFAULT_OPENAI_MODEL
 
   // If already an OpenAI-format model name, pass through as-is

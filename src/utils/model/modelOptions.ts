@@ -529,7 +529,7 @@ export function getModelOptions(fastMode = false): ModelOption[] {
   const initialMainLoopModel = getInitialMainLoopModel()
   if (currentMainLoopModel !== undefined && currentMainLoopModel !== null) {
     customModel = currentMainLoopModel
-  } else if (initialMainLoopModel !== null) {
+  } else if (initialMainLoopModel !== undefined && initialMainLoopModel !== null) {
     customModel = initialMainLoopModel
   }
   if (customModel === null || options.some(opt => opt.value === customModel)) {
@@ -572,16 +572,31 @@ export function getProviderScopedModelOptions(): ModelOption[] {
   }))
 }
 
+export async function refreshProviderScopedModelOptions(): Promise<ModelOption[]> {
+  const { refreshProviderModelsCache } = require('./configs.js') as typeof import('./configs.js')
+  const models = await refreshProviderModelsCache()
+  return models.map(model => ({
+    value: model.id,
+    label: model.name ?? model.id,
+    description: model.description ?? model.id,
+  }))
+}
+
 /**
  * Filter model options by the availableModels allowlist.
  * Always preserves the "Default" option (value: null).
  */
 function filterModelOptionsByAllowlist(options: ModelOption[]): ModelOption[] {
   const settings = getSettings_DEPRECATED() || {}
+  const validOptions = options.filter(
+    (opt): opt is ModelOption =>
+      opt.value === null ||
+      (typeof opt.value === 'string' && !opt.value.includes('undefined')),
+  )
   if (!settings.availableModels) {
-    return options // No restrictions
+    return validOptions // No restrictions
   }
-  return options.filter(
+  return validOptions.filter(
     opt =>
       opt.value === null || (opt.value !== null && isModelAllowed(opt.value)),
   )

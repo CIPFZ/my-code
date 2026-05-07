@@ -60,7 +60,7 @@ export function getUsername(): string {
 // triggers repeat sync reads — observed as a 5.5s event-loop stall
 // (go/ccshare/adamj-20260326-212235). 30s of cross-process staleness is fine:
 // OAuth tokens expire in hours, and the only cross-process writer is another
-// CC instance's /login or refresh.
+// CC instance's provider configuration or refresh.
 //
 // Lives here (not in macOsKeychainStorage.ts) so keychainPrefetch.ts can
 // prime it without pulling in execa. Wrapped in an object because ES module

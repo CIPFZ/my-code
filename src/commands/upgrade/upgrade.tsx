@@ -3,9 +3,7 @@ import type { LocalJSXCommandContext } from '../../commands.js';
 import { getOauthProfileFromOauthToken } from '../../services/oauth/getOauthProfile.js';
 import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import { getClaudeAIOAuthTokens, isClaudeAISubscriber } from '../../utils/auth.js';
-import { openBrowser } from '../../utils/browser.js';
 import { logError } from '../../utils/log.js';
-import { Login } from '../login/login.js';
 export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode | null> {
   try {
     // Check if user is already on the highest Max plan (20x)
@@ -19,19 +17,14 @@ export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXComma
         isMax20x = profile?.organization?.organization_type === 'claude_max' && profile?.organization?.rate_limit_tier === 'default_claude_max_20x';
       }
       if (isMax20x) {
-        setTimeout(onDone, 0, 'You are already on the highest Max subscription plan. For additional usage, run /login to switch to an API usage-billed account.');
+        setTimeout(onDone, 0, 'You are already on the highest Max subscription plan. Update ~/.my-code/models.config.json to switch provider, URL, or default model.');
         return null;
       }
     }
-    const url = 'https://claude.ai/upgrade/max';
-    await openBrowser(url);
-    return <Login startingMessage={'Starting new login following /upgrade. Exit with Ctrl-C to use existing account.'} onDone={success => {
-      context.onChangeAPIKey();
-      onDone(success ? 'Login successful' : 'Login interrupted');
-    }} />;
+    onDone('Open your provider console and update ~/.my-code/models.config.json for the account, URL, or default model you want to use.');
   } catch (error) {
     logError(error as Error);
-    setTimeout(onDone, 0, 'Failed to open browser. Please visit https://claude.ai/upgrade/max to upgrade.');
+    setTimeout(onDone, 0, 'Unable to inspect plan. Use ~/.my-code/models.config.json to select your provider configuration.');
   }
   return null;
 }

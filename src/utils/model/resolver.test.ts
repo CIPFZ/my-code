@@ -103,6 +103,31 @@ describe('my-code model resolver', () => {
     expect(resolveProviderProtocol(provider)).toBe('openai')
   })
 
+  it('loads UTF-8 BOM encoded models config files', () => {
+    const homeDir = tempHome()
+    const configDir = join(homeDir, '.my-code')
+    mkdirSync(configDir, { recursive: true })
+    writeFileSync(
+      join(configDir, 'models.config.json'),
+      `\uFEFF${JSON.stringify({
+        currentProvider: 'openai',
+        providers: {
+          openai: {
+            protocol: 'openai',
+            apiKey: 'configured-key',
+            models: {
+              'gpt-test': { contextWindow: 128000, maxOutputTokens: 4096 },
+            },
+          },
+        },
+      })}`,
+    )
+
+    const provider = resolveCurrentProvider({ homeDir, env: resolverEnv() })
+
+    expect(provider.providerId).toBe('openai')
+  })
+
   it('requires an explicit valid provider protocol', () => {
     expect(() => resolveProviderProtocol({ apiKey: 'key' })).toThrow(
       'Provider protocol is required',

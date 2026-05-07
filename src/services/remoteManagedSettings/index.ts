@@ -556,7 +556,7 @@ export async function loadRemoteManagedSettings(): Promise<void> {
 
 /**
  * Refresh remote settings asynchronously (for auth state changes)
- * This is used when login/logout occurs
+ * This is used when credential changes occurs
  * Fails open - if fetch fails, continues without remote settings
  */
 export async function refreshRemoteManagedSettings(): Promise<void> {
