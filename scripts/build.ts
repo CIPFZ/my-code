@@ -9,6 +9,13 @@ const pkg = await Bun.file(new URL('../package.json', import.meta.url)).json() a
 const args = process.argv.slice(2)
 const compile = args.includes('--compile')
 const dev = args.includes('--dev')
+const configDirNameArg = args.find(arg =>
+  arg.startsWith('--config-dir-name='),
+)
+const defaultConfigDirName =
+  configDirNameArg?.slice('--config-dir-name='.length) ||
+  process.env.MY_CODE_DEFAULT_CONFIG_DIR_NAME ||
+  '.my-code'
 
 const fullExperimentalFeatures = [
   'AGENT_MEMORY_SNAPSHOT',
@@ -144,6 +151,9 @@ const defines = {
       }
     : {}),
   'process.env.CLAUDE_CODE_VERIFY_PLAN': JSON.stringify('false'),
+  'process.env.MY_CODE_DEFAULT_CONFIG_DIR_NAME': JSON.stringify(
+    defaultConfigDirName,
+  ),
   'process.env.CCR_FORCE_BUNDLE': JSON.stringify('true'),
   'MACRO.VERSION': JSON.stringify(version),
   'MACRO.BUILD_TIME': JSON.stringify(buildTime),

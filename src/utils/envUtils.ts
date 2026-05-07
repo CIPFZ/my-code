@@ -6,12 +6,19 @@ import { join } from 'path'
 // tests that change the env var get a fresh value without explicit cache.clear.
 export const getClaudeConfigHomeDir = memoize(
   (): string => {
+    const defaultDirName =
+      process.env.MY_CODE_DEFAULT_CONFIG_DIR_NAME || '.claude'
     return (
-      process.env.MY_CODE_CONFIG_DIR ?? join(homedir(), '.my-code')
+      process.env.MY_CODE_CONFIG_DIR ?? join(homedir(), defaultDirName)
     ).normalize('NFC')
   },
-  () => process.env.MY_CODE_CONFIG_DIR,
+  () =>
+    `${process.env.MY_CODE_CONFIG_DIR ?? ''}\0${process.env.MY_CODE_DEFAULT_CONFIG_DIR_NAME ?? ''}`,
 )
+
+export function clearClaudeConfigHomeDirCacheForTesting(): void {
+  getClaudeConfigHomeDir.cache.clear?.()
+}
 
 export function getTeamsDir(): string {
   return join(getClaudeConfigHomeDir(), 'teams')

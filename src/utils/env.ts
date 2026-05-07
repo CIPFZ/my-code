@@ -13,6 +13,10 @@ export const getGlobalClaudeFile = memoize((): string => {
   return join(getClaudeConfigHomeDir(), '.config.json')
 })
 
+export function clearGlobalClaudeFileCacheForTesting(): void {
+  getGlobalClaudeFile.cache.clear?.()
+}
+
 const hasInternetAccess = memoize(async (): Promise<boolean> => {
   try {
     const { default: axiosClient } = await import('axios')

@@ -672,12 +672,18 @@ function sanitizeLegacyGlobalConfig(config: Partial<GlobalConfig>): Partial<Glob
 }
 
 function migrateLegacyGlobalConfigIfNeeded(): void {
+  if (!isEnvTruthy(process.env.MY_CODE_MIGRATE_LEGACY_CLAUDE_CONFIG)) {
+    return
+  }
+
   const activeFile = getGlobalClaudeFile()
   const fs = getFsImplementation()
   fs.mkdirSync(getClaudeConfigHomeDir())
   if (existsSync(activeFile)) return
 
-  const legacyFile = join(homedir(), '.claude.json')
+  const legacyFile =
+    process.env.MY_CODE_LEGACY_CLAUDE_CONFIG_FILE ??
+    join(homedir(), '.claude.json')
   if (!existsSync(legacyFile)) return
 
   try {
@@ -1883,6 +1889,8 @@ export function getUserClaudeRulesDir(): string {
 // Exported for testing only
 export const _getConfigForTesting = getConfig
 export const _wouldLoseAuthStateForTesting = wouldLoseAuthState
+export const _migrateLegacyGlobalConfigIfNeededForTesting =
+  migrateLegacyGlobalConfigIfNeeded
 export function _setGlobalConfigCacheForTesting(
   config: GlobalConfig | null,
 ): void {
