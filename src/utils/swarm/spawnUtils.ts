@@ -103,6 +103,10 @@ const TEAMMATE_ENV_VARS = [
   'ANTHROPIC_BASE_URL',
   // Config directory override
   'CLAUDE_CONFIG_DIR',
+  'MY_CODE_CONFIG_DIR',
+  'MY_CODE_DEFAULT_CONFIG_DIR_NAME',
+  // MyCode provider selection
+  'MY_CODE_PROVIDER',
   // CCR marker — teammates need this for CCR-aware code paths. Auth finds
   // its own way via /home/claude/.claude/remote/.oauth_token regardless;
   // the FD env var wouldn't help (pipe FDs don't cross tmux).

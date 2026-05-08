@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+if [ -x "$script_dir/my-code" ]; then
+  my_code_bin="$script_dir/my-code"
+elif [ -x "$script_dir/my-code.exe" ]; then
+  my_code_bin="$script_dir/my-code.exe"
+elif [ -x "$script_dir/my-code-dev" ]; then
+  my_code_bin="$script_dir/my-code-dev"
+elif [ -x "$script_dir/my-code-dev.exe" ]; then
+  my_code_bin="$script_dir/my-code-dev.exe"
+elif command -v my-code >/dev/null 2>&1; then
+  my_code_bin=$(command -v my-code)
+else
+  echo "my-code-bypass: unable to find my-code next to this script or in PATH" >&2
+  exit 127
+fi
+
+exec "$my_code_bin" --dangerously-skip-permissions --permission-mode bypassPermissions "$@"
