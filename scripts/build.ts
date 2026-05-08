@@ -15,7 +15,7 @@ const configDirNameArg = args.find(arg =>
 const defaultConfigDirName =
   configDirNameArg?.slice('--config-dir-name='.length) ||
   process.env.MY_CODE_DEFAULT_CONFIG_DIR_NAME ||
-  '.my-code'
+  '.claude'
 
 const fullExperimentalFeatures = [
   'AGENT_MEMORY_SNAPSHOT',

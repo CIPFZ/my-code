@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { createAxiosInstance } from '../proxy.js'
+import { getClaudeConfigHomeDir } from '../envUtils.js'
 import { getAPIProvider, getConfiguredApiUrl, getConfiguredApiKey } from './providers.js'
 
 export type FetchedModel = {
@@ -128,7 +129,7 @@ export async function saveCustomApiConfigAndFetchModels(
 /**
  * Get cached models from global config.
  * If no cache exists but a custom provider is configured, triggers a background fetch.
- * Uses ~/.my-code/ directory for persistence (independent from Claude config).
+ * Uses the configured MyCode data directory for persistence.
  */
 export function getCachedCustomApiModels(): FetchedModel[] | undefined {
   const models = loadCachedModelsFromFile()
@@ -160,15 +161,15 @@ export function getCachedCustomApiModels(): FetchedModel[] | undefined {
 }
 
 /**
- * Get the path to the custom API cache file in ~/.my-code/
+ * Get the path to the custom API cache file.
  */
-function getCustomApiCachePath(): string {
-  const { homedir } = require('os')
-  return `${homedir()}/.my-code/customApiConfig.json`
+export function getCustomApiCachePath(): string {
+  const { join } = require('path')
+  return join(getClaudeConfigHomeDir(), 'customApiConfig.json')
 }
 
 /**
- * Load cached models from ~/.my-code/customApiConfig.json
+ * Load cached models from the configured data directory.
  */
 function loadCachedModelsFromFile(): FetchedModel[] | undefined {
   try {
@@ -186,7 +187,7 @@ function loadCachedModelsFromFile(): FetchedModel[] | undefined {
 }
 
 /**
- * Save models cache to ~/.my-code/customApiConfig.json
+ * Save models cache to the configured data directory.
  */
 function saveModelsCacheToFile(
   apiUrl: string,
@@ -197,7 +198,7 @@ function saveModelsCacheToFile(
     const fs = require('fs')
     const cachePath = getCustomApiCachePath()
 
-    // Ensure ~/.my-code/ directory exists
+    // Ensure the configured data directory exists.
     const dir = require('path').dirname(cachePath)
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
@@ -215,7 +216,7 @@ function saveModelsCacheToFile(
 }
 
 /**
- * Fetch models and cache them to ~/.my-code/customApiConfig.json
+ * Fetch models and cache them to the configured data directory.
  */
 async function fetchAndCacheModels(
   apiUrl: string,
@@ -223,7 +224,6 @@ async function fetchAndCacheModels(
 ): Promise<{ providerType: 'openai' | 'anthropic' } | null> {
   const result = await fetchModelsFromEndpoint(apiUrl, apiKey)
   if (result.success && result.models) {
-    // Save to ~/.my-code/ directory instead of ~/.claude/
     saveModelsCacheToFile(apiUrl, apiKey, result.models)
     return { providerType: 'openai' }
   }

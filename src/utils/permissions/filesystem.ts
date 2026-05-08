@@ -18,6 +18,7 @@ import type { AnyObject, Tool, ToolPermissionContext } from '../../Tool.js'
 import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
 import { getCwd } from '../cwd.js'
 import { getClaudeConfigHomeDir } from '../envUtils.js'
+import { getConfigDisplayDir } from '../model/resolver.js'
 import {
   getFsImplementation,
   getPathsForPermissionCheck,
@@ -111,7 +112,7 @@ export function getClaudeSkillScope(
     },
     {
       dir: expandPath(join(getClaudeConfigHomeDir(), 'skills')),
-      prefix: '~/.my-code/skills/',
+      prefix: `${getConfigDisplayDir()}/skills/`,
     },
   ]
 

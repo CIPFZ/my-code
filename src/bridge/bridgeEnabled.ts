@@ -70,7 +70,7 @@ export async function isBridgeEnabledBlocking(): Promise<boolean> {
 export async function getBridgeDisabledReason(): Promise<string | null> {
   if (feature('BRIDGE_MODE')) {
     if (!isClaudeAISubscriber()) {
-      return 'Remote Control requires claude.ai OAuth, which is disabled in MyCode. Use local provider configuration in ~/.my-code/models.config.json instead.'
+      return 'Remote Control requires claude.ai OAuth, which is disabled in MyCode. Use the configured models.config.json instead.'
     }
     if (!hasProfileScope()) {
       return 'Remote Control requires a full-scope OAuth token. MyCode disables Claude OAuth login and long-lived token setup; use local provider configuration instead.'

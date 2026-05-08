@@ -95,7 +95,7 @@ export function TeleportError(t0) {
       {
         let t9;
         if ($[16] === Symbol.for("react.memo_cache_sentinel")) {
-          t9 = <Box flexDirection="column"><Text dimColor={true}>Teleport requires Claude.ai OAuth, which is disabled in my-code.</Text><Text dimColor={true}>Use local provider configuration in ~/.my-code/models.config.json instead.</Text></Box>;
+          t9 = <Box flexDirection="column"><Text dimColor={true}>Teleport requires Claude.ai OAuth, which is disabled in my-code.</Text><Text dimColor={true}>Use local provider configuration in the configured models.config.json instead.</Text></Box>;
           $[16] = t9;
         } else {
           t9 = $[16];

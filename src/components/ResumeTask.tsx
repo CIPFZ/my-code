@@ -251,7 +251,7 @@ function renderErrorSpecificGuidance(errorType: LoadErrorType): React.ReactNode 
       return <Box marginY={1} flexDirection="column">
           <Text dimColor>Teleport requires Claude.ai OAuth, which is disabled in MyCode.</Text>
           <Text dimColor>
-            Use local provider configuration in ~/.my-code/models.config.json instead.
+            Use local provider configuration in the configured models.config.json instead.
           </Text>
         </Box>;
     case 'api':

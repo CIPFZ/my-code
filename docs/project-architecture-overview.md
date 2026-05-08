@@ -10,7 +10,7 @@
 
 - 使用 Bun 作为依赖、测试、构建与单文件编译运行时。
 - 输出可直接执行的 `./my-code` / `./my-code-dev`，减少对 Node 环境的运行期依赖。
-- 使用 `~/.my-code/models.config.json` 管理 provider、protocol、base URL、API key、默认模型和模型 metadata。
+- 使用 `~/.claude/models.config.json` 管理 provider、protocol、base URL、API key、默认模型和模型 metadata。
 - 使用 `MY_CODE_*` 环境变量隔离本项目配置，避免污染原 Claude Code 配置。
 - 支持 Anthropic Messages-compatible API 与 OpenAI-compatible Chat Completions API。
 - 保留原 Anthropic SDK 调用路径，在 client 层通过 fetch adapter 做协议转换。
@@ -262,7 +262,7 @@ REPL/headless input
 默认配置路径：
 
 ```text
-~/.my-code/models.config.json
+~/.claude/models.config.json
 ```
 
 配置路径优先级：
@@ -270,7 +270,7 @@ REPL/headless input
 ```text
 MY_CODE_MODEL_CONFIG
 MY_CODE_CONFIG_DIR/models.config.json
-~/.my-code/models.config.json
+~/.claude/models.config.json
 ```
 
 当前 provider 解析优先级：
@@ -569,7 +569,7 @@ bun run build
 ```text
 Claude Code 原 CLI / REPL / query pipeline
   + Bun 单文件构建
-  + ~/.my-code provider/model 配置
+  + configured data directory provider/model 配置
   + provider-scoped /model 与 context metadata
   + OpenAI-compatible fetch adapter
   + agent/team 模型路由校验

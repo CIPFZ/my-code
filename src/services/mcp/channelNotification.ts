@@ -223,7 +223,7 @@ export function gateChannelServer(
     return {
       action: 'skip',
       kind: 'auth',
-      reason: 'channels requires claude.ai authentication (update ~/.my-code/models.config.json)',
+      reason: 'channels requires claude.ai authentication (update the configured models.config.json)',
     }
   }
 

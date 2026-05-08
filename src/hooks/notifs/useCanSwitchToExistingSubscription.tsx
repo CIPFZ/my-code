@@ -16,7 +16,7 @@ export function useCanSwitchToExistingSubscription() {
 
 /**
  * Checks if the user has a subscription but is not currently logged into it.
- * This helps inform users they should update ~/.my-code/models.config.json to access their subscription.
+ * This helps inform users they should update the configured models.config.json to access their subscription.
  */
 async function _temp2() {
   if ((getGlobalConfig().subscriptionNoticeCount ?? 0) >= MAX_SHOW_COUNT) {

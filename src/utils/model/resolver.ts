@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
-import { homedir } from 'os'
 import { join } from 'path'
+import { getClaudeConfigHomeDir } from '../envUtils.js'
 
 export const MY_CODE_ENV_PREFIX = 'MY_CODE_'
 export const MY_CODE_CONFIG_DIR_ENV = 'MY_CODE_CONFIG_DIR'
 export const MY_CODE_PROVIDER_ENV = 'MY_CODE_PROVIDER'
-export const MY_CODE_CONFIG_DIR_NAME = '.my-code'
+export const DEFAULT_CONFIG_DIR_NAME = '.claude'
 export const MODELS_CONFIG_FILE = 'models.config.json'
 export const DISCOVERED_PROVIDER_MODELS_CACHE_FILE = 'provider-models.json'
 export const MODEL_LIST_CACHE_NAMESPACE = 'my-code-provider-models'
@@ -138,11 +138,35 @@ export function getMyCodeConfigDir(context: ResolverContext = {}): string {
   const env = context.env ?? process.env
   if (context.configDir) return context.configDir
   if (env.MY_CODE_CONFIG_DIR) return env.MY_CODE_CONFIG_DIR
-  return join(context.homeDir ?? homedir(), MY_CODE_CONFIG_DIR_NAME)
+  if (context.homeDir) {
+    return join(
+      context.homeDir,
+      env.MY_CODE_DEFAULT_CONFIG_DIR_NAME || DEFAULT_CONFIG_DIR_NAME,
+    )
+  }
+  return getClaudeConfigHomeDir()
 }
 
 export function getModelsConfigPath(context: ResolverContext = {}): string {
   return join(getMyCodeConfigDir(context), MODELS_CONFIG_FILE)
+}
+
+export function getConfigDisplayDir(context: ResolverContext = {}): string {
+  const configDir = getMyCodeConfigDir(context)
+  if (context.configDir || (context.env ?? process.env).MY_CODE_CONFIG_DIR) {
+    return configDir
+  }
+  const dirName =
+    (context.env ?? process.env).MY_CODE_DEFAULT_CONFIG_DIR_NAME ||
+    DEFAULT_CONFIG_DIR_NAME
+  return `~/${dirName}`
+}
+
+export function getModelsConfigDisplayPath(context: ResolverContext = {}): string {
+  if (!(context.configDir || (context.env ?? process.env).MY_CODE_CONFIG_DIR)) {
+    return `${getConfigDisplayDir(context)}/${MODELS_CONFIG_FILE}`
+  }
+  return join(getConfigDisplayDir(context), MODELS_CONFIG_FILE)
 }
 
 export function getDiscoveredProviderModelsCachePath(

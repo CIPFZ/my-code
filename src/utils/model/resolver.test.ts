@@ -4,6 +4,8 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import {
   clearRuntimeModelConfigCache,
+  getConfigDisplayDir,
+  getModelsConfigDisplayPath,
   getModelsConfigPath,
   resolveCurrentProvider,
   resolveModelMetadata,
@@ -36,24 +38,28 @@ function resolverEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return { ...env, ...overrides }
 }
 
-function writeConfig(homeDir: string, config: ModelConfigFile): void {
-  const configDir = join(homeDir, '.my-code')
+function writeConfig(
+  homeDir: string,
+  config: ModelConfigFile,
+  dirName = '.claude',
+): void {
+  const configDir = join(homeDir, dirName)
   mkdirSync(configDir, { recursive: true })
   writeFileSync(join(configDir, 'models.config.json'), JSON.stringify(config))
 }
 
 describe('my-code model resolver', () => {
-  it('uses ~/.my-code and ignores Claude model config env vars', () => {
+  it('uses the unified config directory and ignores legacy Claude config env vars', () => {
     const homeDir = tempHome()
-    const claudeDir = join(homeDir, '.claude')
-    mkdirSync(claudeDir, { recursive: true })
+    const legacyClaudeDir = join(homeDir, '.legacy-claude')
+    mkdirSync(legacyClaudeDir, { recursive: true })
     writeFileSync(
-      join(claudeDir, 'models.config.json'),
+      join(legacyClaudeDir, 'models.config.json'),
       JSON.stringify({ currentProvider: 'claude-only', providers: {} }),
     )
-    process.env.CLAUDE_CONFIG_DIR = claudeDir
-    process.env.CLAUDE_CODE_MODEL_CONFIG = join(claudeDir, 'models.config.json')
-    process.env.CLAUDE_CODE_CONFIG_DIR = claudeDir
+    process.env.CLAUDE_CONFIG_DIR = legacyClaudeDir
+    process.env.CLAUDE_CODE_MODEL_CONFIG = join(legacyClaudeDir, 'models.config.json')
+    process.env.CLAUDE_CODE_CONFIG_DIR = legacyClaudeDir
 
     writeConfig(homeDir, {
       currentProvider: 'openai',
@@ -71,9 +77,57 @@ describe('my-code model resolver', () => {
 
     const provider = resolveCurrentProvider({ homeDir, env: resolverEnv() })
     expect(getModelsConfigPath({ homeDir })).toBe(
+      join(homeDir, '.claude', 'models.config.json'),
+    )
+    expect(provider.providerId).toBe('openai')
+  })
+
+  it('uses MY_CODE_DEFAULT_CONFIG_DIR_NAME as the compile-time default directory name', () => {
+    const homeDir = tempHome()
+    writeConfig(
+      homeDir,
+      {
+        currentProvider: 'openai',
+        providers: {
+          openai: {
+            protocol: 'openai',
+            apiKey: 'configured-key',
+            models: {
+              'gpt-test': { contextWindow: 128000, maxOutputTokens: 4096 },
+            },
+          },
+        },
+      },
+      '.my-code',
+    )
+
+    const env = resolverEnv({ MY_CODE_DEFAULT_CONFIG_DIR_NAME: '.my-code' })
+    const provider = resolveCurrentProvider({ homeDir, env })
+
+    expect(getModelsConfigPath({ homeDir, env })).toBe(
       join(homeDir, '.my-code', 'models.config.json'),
     )
     expect(provider.providerId).toBe('openai')
+  })
+
+  it('formats the model config display path from the configured data directory', () => {
+    expect(getConfigDisplayDir({ env: resolverEnv() })).toBe(
+      '~/.claude',
+    )
+    expect(getModelsConfigDisplayPath({ env: resolverEnv() })).toBe(
+      '~/.claude/models.config.json',
+    )
+    expect(
+      getModelsConfigDisplayPath({
+        env: resolverEnv({ MY_CODE_DEFAULT_CONFIG_DIR_NAME: '.my-code' }),
+      }),
+    ).toBe('~/.my-code/models.config.json')
+    expect(
+      getModelsConfigDisplayPath({
+        configDir: join('tmp', 'my-code-data'),
+        env: resolverEnv(),
+      }),
+    ).toBe(join('tmp', 'my-code-data', 'models.config.json'))
   })
 
   it('allows MY_CODE_PROVIDER to override currentProvider', () => {
@@ -105,7 +159,7 @@ describe('my-code model resolver', () => {
 
   it('loads UTF-8 BOM encoded models config files', () => {
     const homeDir = tempHome()
-    const configDir = join(homeDir, '.my-code')
+    const configDir = join(homeDir, '.claude')
     mkdirSync(configDir, { recursive: true })
     writeFileSync(
       join(configDir, 'models.config.json'),

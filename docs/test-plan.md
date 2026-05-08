@@ -26,11 +26,11 @@ bun test --reporter=verbose
 
 ### 1. Provider / Model 配置
 
-目标：确保 `~/.my-code/models.config.json` 和 `MY_CODE_*` 环境变量能稳定控制 provider 与模型。
+目标：确保 `~/.claude/models.config.json` 和 `MY_CODE_*` 环境变量能稳定控制 provider 与模型。
 
 重点用例：
 
-- 默认配置路径解析：`~/.my-code/models.config.json`。
+- 默认配置路径解析：`~/.claude/models.config.json`。
 - `MY_CODE_MODEL_CONFIG` 覆盖配置文件路径。
 - `MY_CODE_CONFIG_DIR` 覆盖配置目录。
 - `MY_CODE_PROVIDER` 覆盖当前 provider。
@@ -142,7 +142,7 @@ bun test --reporter=verbose
 
 ### 配置文件
 
-- [ ] 使用默认 `~/.my-code/models.config.json`。
+- [ ] 使用默认 `~/.claude/models.config.json`。
 - [ ] 使用 `MY_CODE_MODEL_CONFIG` 指向临时配置。
 - [ ] 使用 `MY_CODE_CONFIG_DIR` 指向临时目录。
 - [ ] 使用 `MY_CODE_PROVIDER` 切换 provider。

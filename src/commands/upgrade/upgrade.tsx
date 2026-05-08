@@ -17,14 +17,14 @@ export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXComma
         isMax20x = profile?.organization?.organization_type === 'claude_max' && profile?.organization?.rate_limit_tier === 'default_claude_max_20x';
       }
       if (isMax20x) {
-        setTimeout(onDone, 0, 'You are already on the highest Max subscription plan. Update ~/.my-code/models.config.json to switch provider, URL, or default model.');
+        setTimeout(onDone, 0, 'You are already on the highest Max subscription plan. Update the configured models.config.json to switch provider, URL, or default model.');
         return null;
       }
     }
-    onDone('Open your provider console and update ~/.my-code/models.config.json for the account, URL, or default model you want to use.');
+    onDone('Open your provider console and update the configured models.config.json for the account, URL, or default model you want to use.');
   } catch (error) {
     logError(error as Error);
-    setTimeout(onDone, 0, 'Unable to inspect plan. Use ~/.my-code/models.config.json to select your provider configuration.');
+    setTimeout(onDone, 0, 'Unable to inspect plan. Use the configured models.config.json to select your provider configuration.');
   }
   return null;
 }

@@ -3,7 +3,7 @@ export const DEFAULT_SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000
 
 /** Reusable provider guidance appended to bridge auth errors. */
 export const BRIDGE_LOGIN_INSTRUCTION =
-  'Remote Control requires claude.ai OAuth, which is disabled in MyCode. Use local provider configuration in ~/.my-code/models.config.json instead.'
+  'Remote Control requires claude.ai OAuth, which is disabled in MyCode. Use the configured models.config.json instead.'
 
 /** Full error printed when remote-control is run without auth. */
 export const BRIDGE_LOGIN_ERROR =

@@ -21,6 +21,7 @@ import {
   getSessionId,
 } from '../../bootstrap/state.js'
 import { getConfigApiKey, getConfigApiUrl, getConfigProtocol } from '../../utils/model/configs.js'
+import { getModelsConfigDisplayPath } from '../../utils/model/resolver.js'
 import { createOpenAIFetch } from './openai-fetch-adapter.js'
 import { isDebugToStdErr, logForDebugging } from '../../utils/debug.js'
 import {
@@ -290,7 +291,7 @@ export async function getAnthropicClient({
   const resolvedApiKey = apiKey || configApiKey
   if (!resolvedApiKey) {
     throw new Error(
-      'Missing API key. Configure apiKey or apiKeyEnv in ~/.my-code/models.config.json for the current provider.',
+      `Missing API key. Configure apiKey or apiKeyEnv in ${getModelsConfigDisplayPath()} for the current provider.`,
     )
   }
 

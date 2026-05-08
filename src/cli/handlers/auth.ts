@@ -28,6 +28,7 @@ import { clearBetasCaches } from '../../utils/betas.js'
 import { logForDebugging } from '../../utils/debug.js'
 import { isRunningOnHomespace } from '../../utils/envUtils.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
+import { getModelsConfigDisplayPath } from '../../utils/model/resolver.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import { buildAccountProperties } from '../../utils/status.js'
 import { clearToolSchemaCache } from '../../utils/toolSchemaCache.js'
@@ -169,7 +170,7 @@ export async function authStatus(opts: {
     }
     if (!loggedIn) {
       process.stdout.write(
-        'No my-code API credentials configured. Configure ~/.my-code/models.config.json or set provider environment credentials.\n',
+        `No my-code API credentials configured. Configure ${getModelsConfigDisplayPath()} or set provider environment credentials.\n`,
       )
     }
   } else {
