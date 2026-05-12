@@ -21,7 +21,7 @@ import { getAPIProvider } from './providers.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias } from './aliases.js'
-import { getConfigDefaultModel } from './configs.js'
+import { getConfigDefaultModel, resolveConfiguredModelForCurrentProvider } from './configs.js'
 import { capitalize } from '../stringUtils.js'
 
 export type ModelShortName = string
@@ -62,6 +62,7 @@ export function getUserSpecifiedModelSetting(): ModelSetting | undefined {
   } else {
     const settings = getSettings_DEPRECATED() || {}
     specifiedModel = settings.model || undefined
+    specifiedModel = resolveConfiguredModelForCurrentProvider(specifiedModel)
   }
 
   // Ignore the user-specified model if it's not in the availableModels allowlist.

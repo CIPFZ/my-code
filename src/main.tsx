@@ -67,9 +67,9 @@ import { isWorktreeModeEnabled } from './utils/worktreeModeEnabled.js';
 
 // Lazy require to avoid circular dependency: teammate.ts -> AppState.tsx -> ... -> main.tsx
 /* eslint-disable @typescript-eslint/no-require-imports */
-const getTeammateUtils = () => require('./utils/teammate.js') as typeof import('./utils/teammate.js');
-const getTeammatePromptAddendum = () => require('./utils/swarm/teammatePromptAddendum.js') as typeof import('./utils/swarm/teammatePromptAddendum.js');
-const getTeammateModeSnapshot = () => require('./utils/swarm/backends/teammateModeSnapshot.js') as typeof import('./utils/swarm/backends/teammateModeSnapshot.js');
+const getTeammateUtils = () => import('./utils/teammate.js') as Promise<typeof import('./utils/teammate.js')>;
+const getTeammatePromptAddendum = () => import('./utils/swarm/teammatePromptAddendum.js') as Promise<typeof import('./utils/swarm/teammatePromptAddendum.js')>;
+const getTeammateModeSnapshot = () => import('./utils/swarm/backends/teammateModeSnapshot.js') as Promise<typeof import('./utils/swarm/backends/teammateModeSnapshot.js')>;
 /* eslint-enable @typescript-eslint/no-require-imports */
 // Dead code elimination: conditional import for COORDINATOR_MODE
 /* eslint-disable @typescript-eslint/no-require-imports */

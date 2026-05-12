@@ -193,6 +193,16 @@ function resolveConfiguredRoute(
   return validateProviderModel(alias ?? model, provider)
 }
 
+function resolveOptionalConfiguredRoute(
+  model: string | undefined,
+  provider = getRuntimeProviderResolution(),
+): string | undefined {
+  if (!model || model === 'inherit') return undefined
+  const alias = resolveConfiguredAlias(model)
+  const resolvedModel = alias ?? model
+  return findProviderModel(resolvedModel, provider) ? resolvedModel : undefined
+}
+
 export function clearModelConfigCache(): void {
   clearRuntimeModelConfigCache()
 }
@@ -310,12 +320,13 @@ export function resolveAgentModel(params: {
 }): string {
   const provider = getRuntimeProviderResolution()
   const config = getScopedConfig()
-  const configured =
-    params.toolSpecifiedModel ??
-    (params.agentName ? config.agents?.models?.[params.agentName] : undefined) ??
-    config.agents?.defaultModel
-
-  const configuredModel = resolveConfiguredRoute(configured, provider)
+  const configuredModel = params.toolSpecifiedModel
+    ? resolveConfiguredRoute(params.toolSpecifiedModel, provider)
+    : resolveOptionalConfiguredRoute(
+        (params.agentName ? config.agents?.models?.[params.agentName] : undefined) ??
+          config.agents?.defaultModel,
+        provider,
+      )
   if (configuredModel) return configuredModel
   if (params.currentModel) return validateProviderModel(params.currentModel, provider)
 
@@ -336,14 +347,15 @@ export function resolveTeamModel(params: {
 }): string {
   const provider = getRuntimeProviderResolution()
   const config = getScopedConfig()
-  const configured =
-    params.toolSpecifiedModel ??
-    (params.role ? config.teams?.models?.[params.role] : undefined) ??
-    (params.role ? config.agents?.models?.[params.role] : undefined) ??
-    config.teams?.defaultModel ??
-    config.agents?.defaultModel
-
-  const configuredModel = resolveConfiguredRoute(configured, provider)
+  const configuredModel = params.toolSpecifiedModel
+    ? resolveConfiguredRoute(params.toolSpecifiedModel, provider)
+    : resolveOptionalConfiguredRoute(
+        (params.role ? config.teams?.models?.[params.role] : undefined) ??
+          (params.role ? config.agents?.models?.[params.role] : undefined) ??
+          config.teams?.defaultModel ??
+          config.agents?.defaultModel,
+        provider,
+      )
   if (configuredModel) return configuredModel
   if (params.currentModel) return validateProviderModel(params.currentModel, provider)
 
@@ -363,6 +375,16 @@ export function getConfiguredCurrentModel(): string | undefined {
   const config = getScopedConfig()
   const provider = getRuntimeProviderResolution()
   return config.currentModel ?? provider.provider.defaultModel
+}
+
+export function resolveConfiguredModelForCurrentProvider(
+  model: string | undefined | null,
+): string | undefined {
+  if (!model) return undefined
+  const provider = getRuntimeProviderResolution()
+  const alias = resolveConfiguredAlias(model)
+  const resolvedModel = alias ?? model
+  return findProviderModel(resolvedModel, provider) ? model : undefined
 }
 
 export function setConfiguredCurrentModel(model: string): void {

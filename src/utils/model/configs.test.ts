@@ -7,6 +7,7 @@ import {
   getDiscoveredProviderModelsCachePath,
   resolveAgentModel,
   resolveCurrentProvider,
+  resolveConfiguredModelForCurrentProvider,
   resolveModelMetadata,
   resolveProviderModels,
   resolveTeamModel,
@@ -70,6 +71,16 @@ describe('model resolver config', () => {
     expect(() => resolveModelMetadata('missing-model')).toThrow(/not configured|Missing contextWindow/)
   })
 
+  it('ignores stale saved current models from another provider', () => {
+    withConfig({
+      ...config,
+      currentProvider: 'openai',
+      currentModel: 'claude-opus-4-6',
+    })
+
+    expect(resolveConfiguredModelForCurrentProvider('claude-opus-4-6')).toBeUndefined()
+  })
+
   it('routes agents through current model before frontmatter aliases', () => {
     withConfig(config)
     expect(
@@ -82,6 +93,17 @@ describe('model resolver config', () => {
     expect(() =>
       resolveTeamModel({ teamName: 'qa', role: 'lead', toolSpecifiedModel: 'opus' }),
     ).toThrow(/not configured/)
+  })
+
+  it('falls back to the current model when configured agent defaults belong to another provider', () => {
+    withConfig({
+      ...config,
+      agents: { defaultModel: 'claude-opus-4-6' },
+      teams: { defaultModel: 'claude-opus-4-6' },
+    })
+
+    expect(resolveAgentModel({ agentName: 'reviewer', currentModel: 'gpt-4o' })).toBe('gpt-4o')
+    expect(resolveTeamModel({ teamName: 'qa', role: 'lead', currentModel: 'gpt-4o' })).toBe('gpt-4o')
   })
 
   it('uses cached discovered models when modelDiscovery is enabled', () => {

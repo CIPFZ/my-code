@@ -1,9 +1,29 @@
-import envPaths from 'env-paths'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import { getFsImplementation } from './fsOperations.js'
 import { djb2Hash } from './hash.js'
 
-const paths = envPaths('claude-cli')
+const paths = {
+  cache:
+    process.platform === 'darwin'
+      ? join(homedir(), 'Library', 'Caches', 'claude-cli-nodejs')
+      : process.platform === 'win32'
+        ? join(
+            process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'),
+            'claude-cli-nodejs',
+            'Cache',
+          )
+        : join(
+            process.env.XDG_CACHE_HOME || join(homedir(), '.cache'),
+            'claude-cli-nodejs',
+          ),
+  temp:
+    process.platform === 'darwin'
+      ? join(tmpdir(), 'claude-cli-nodejs')
+      : process.platform === 'win32'
+        ? join(tmpdir(), 'claude-cli-nodejs')
+        : join(tmpdir(), getFsImplementation().basename?.(homedir()) ?? '', 'claude-cli-nodejs'),
+}
 
 // Local sanitizePath using djb2Hash — NOT the shared version from
 // sessionStoragePortable.ts which uses Bun.hash (wyhash) when available.
